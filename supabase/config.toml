@@ -1,0 +1,22 @@
+project_id = "matchroom-fantasy"
+
+[api]
+enabled = true
+port = 54321
+
+[db]
+port = 54322
+
+[studio]
+enabled = true
+port = 54323
+
+[auth]
+enabled = true
+enable_signup = true
+[auth.sms]
+enable_signup = true
+enable_confirmations = true
+
+[edge_runtime]
+enabled = true
