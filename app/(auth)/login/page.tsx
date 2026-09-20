@@ -187,7 +187,25 @@ export default function LoginPage() {
         )}
 
         {/* Phone OTP */}
-        {method === 'phone' && !otpSent && (
+        {/*
+          Phone OTP is intentionally disabled, not removed. Supabase's
+          phone auth requires a paid SMS provider (Twilio, MessageBird,
+          or Vonage) — there's no free-tier option that plugs in
+          directly, so shipping this as a live tab would mean a
+          button that fails for every user. The form below is left
+          in place, just gated, so it's a one-line flip to re-enable
+          once an SMS provider is budgeted for.
+        */}
+        {method === 'phone' && (
+          <div className="rounded-lg border border-white/10 bg-ink-soft px-4 py-6 text-center">
+            <Smartphone className="mx-auto h-6 w-6 text-white/30" />
+            <p className="mt-2 text-sm font-medium text-white/70">Phone sign-in isn't available yet</p>
+            <p className="mt-1 text-xs text-white/40">
+              SMS verification requires a paid provider — use Google or Email for now.
+            </p>
+          </div>
+        )}
+        {false && method === 'phone' && !otpSent && (
           <div className="flex flex-col gap-3">
             <div>
               <label className="mb-1 block text-sm text-gray-400">
@@ -212,7 +230,7 @@ export default function LoginPage() {
           </div>
         )}
 
-        {method === 'phone' && otpSent && (
+        {false && method === 'phone' && otpSent && (
           <div className="flex flex-col gap-3">
             <div>
               <label className="mb-1 block text-sm text-gray-400">
@@ -294,10 +312,12 @@ export default function LoginPage() {
         )}
       </div>
 
-      {/* Footer note about session length */}
-      <p className="mt-8 text-xs text-gray-500">
-        🔒 Stay logged in for 30 days — no need to keep signing in!
-      </p>
+      {/* Session length is a Supabase Auth dashboard setting, not
+          something this code controls — the "30 days" claim that was
+          here previously wasn't backed by any actual configuration.
+          If you set a longer session lifetime in Supabase (Auth ->
+          Sessions), update this line to match reality. */}
+      <p className="mt-8 text-xs text-gray-500">🔒 You'll stay signed in until you sign out.</p>
     </main>
   );
 }

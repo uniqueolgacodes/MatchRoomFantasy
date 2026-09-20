@@ -1,9 +1,95 @@
-// PRD §9.2 Onboarding
-export default function Page() {
+'use client';
+// PRD §9.2 Onboarding — step 1. Validates and claims a username via
+// the set_username RPC (supabase/migrations/0004_onboarding.sql),
+// which enforces format/uniqueness/reserved-words server-side rather
+// than trusting client-side checks alone.
+import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { createClient } from '@/lib/supabase/client';
+import { useAuth } from '@/providers/AuthProvider';
+import { Loader2, Check, X } from 'lucide-react';
+
+export default function UsernamePage() {
+  const router = useRouter();
+  const { profile } = useAuth();
+  const supabase = createClient();
+
+  const [username, setUsername] = useState('');
+  const [checking, setChecking] = useState(false);
+  const [available, setAvailable] = useState<boolean | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // Pre-fill with the auto-generated username (user_xxxxxxxx from
+  // handle_new_user) so the field isn't empty, but it still reads as
+  // a placeholder the person should replace.
+  useEffect(() => {
+    if (profile?.username && !username) setUsername(profile.username.replace(/^user_/, ''));
+  }, [profile, username]);
+
+  useEffect(() => {
+    if (!username || username.length < 3) {
+      setAvailable(null);
+      return;
+    }
+    const timeout = setTimeout(async () => {
+      setChecking(true);
+      const { data } = await supabase.rpc('is_username_available', { p_username: username.toLowerCase() });
+      setAvailable(data ?? false);
+      setChecking(false);
+    }, 400);
+    return () => clearTimeout(timeout);
+  }, [username, supabase]);
+
+  async function handleSubmit() {
+    setSubmitting(true);
+    setError(null);
+    const { error } = await supabase.rpc('set_username', { p_username: username });
+    if (error) {
+      setError(error.message);
+      setSubmitting(false);
+      return;
+    }
+    router.push('/onboarding/buddy');
+  }
+
+  const canSubmit = available === true && !submitting;
+
   return (
-    <main className="mx-auto max-w-2xl px-4 py-10">
-      <h1 className="font-display text-2xl font-bold">Choose a username</h1>
-      <p className="mt-2 text-white/60">Not yet built — see the referenced PRD section.</p>
-    </main>
+    <>
+      <h1 className="font-display text-2xl font-bold">Pick a username</h1>
+      <p className="mt-1 text-sm text-white/60">This is how other users will see you in rooms.</p>
+
+      <div className="mt-6">
+        <div className="relative">
+          <input
+            className="w-full rounded-lg bg-ink-soft px-4 py-3 pr-10 outline-none focus:ring-2 focus:ring-pitch"
+            placeholder="e.g. olga_predicts"
+            value={username}
+            onChange={(e) => setUsername(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ''))}
+            maxLength={20}
+            autoFocus
+          />
+          <div className="absolute right-3 top-1/2 -translate-y-1/2">
+            {checking && <Loader2 className="h-4 w-4 animate-spin text-white/40" />}
+            {!checking && available === true && <Check className="h-4 w-4 text-pitch" />}
+            {!checking && available === false && <X className="h-4 w-4 text-red-400" />}
+          </div>
+        </div>
+        <p className="mt-1.5 text-xs text-white/40">3-20 characters — letters, numbers, underscores only.</p>
+        {available === false && !checking && (
+          <p className="mt-1 text-xs text-red-400">That username isn't available.</p>
+        )}
+        {error && <p className="mt-2 text-sm text-red-400">{error}</p>}
+      </div>
+
+      <button
+        onClick={handleSubmit}
+        disabled={!canSubmit}
+        className="mt-6 w-full rounded-lg bg-pitch px-4 py-3 font-semibold disabled:opacity-40"
+      >
+        {submitting ? 'Saving...' : 'Continue'}
+      </button>
+    </>
   );
 }
