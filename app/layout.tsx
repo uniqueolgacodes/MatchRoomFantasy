@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { Inter, Bricolage_Grotesque } from 'next/font/google';
 import { AuthProvider } from '@/providers/AuthProvider';
+import { ToastProvider } from '@/components/ui/Toast';
 import './globals.css';
 
 const inter = Inter({ subsets: ['latin'], variable: '--font-inter', display: 'swap' });
@@ -23,8 +24,14 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           pages silently got the context's default stub values
           instead of a real session (Google sign-in looked like it
           worked but never actually called Supabase).
+
+          ToastProvider is here for the same reason — /login needs it
+          to replace its browser alert() calls, and any future page
+          outside (main) will too.
         */}
-        <AuthProvider>{children}</AuthProvider>
+        <ToastProvider>
+          <AuthProvider>{children}</AuthProvider>
+        </ToastProvider>
       </body>
     </html>
   );

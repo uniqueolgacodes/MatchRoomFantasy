@@ -6,6 +6,7 @@ import { useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { useAuth } from '@/providers/AuthProvider';
+import { useToast } from '@/components/ui/Toast';
 import { Chrome, Mail, Smartphone, Loader2 } from 'lucide-react';
 
 type LoginMethod = 'google' | 'phone' | 'email';
@@ -15,6 +16,7 @@ export default function LoginPage() {
   const searchParams = useSearchParams();
   const { signInWithGoogle, user } = useAuth();
   const supabase = createClient();
+  const toast = useToast();
 
   const [method, setMethod] = useState<LoginMethod>('google');
   const [loading, setLoading] = useState(false);
@@ -41,14 +43,14 @@ export default function LoginPage() {
     const { error } = await signInWithGoogle();
     if (error) {
       console.error('Google sign-in error:', error);
-      alert('Failed to sign in with Google. Please try again.');
+      toast.error('Failed to sign in with Google. Please try again.');
     }
     setLoading(false);
   }
 
   async function sendOtp() {
     if (!phone.startsWith('+')) {
-      alert('Please include country code (e.g., +234 for Nigeria)');
+      toast.error('Please include country code (e.g., +234 for Nigeria)');
       return;
     }
     setLoading(true);
@@ -59,7 +61,7 @@ export default function LoginPage() {
       }
     });
     if (error) {
-      alert(error.message);
+      toast.error(error.message);
     } else {
       setOtpSent(true);
     }
@@ -74,7 +76,7 @@ export default function LoginPage() {
       type: 'sms'
     });
     if (error) {
-      alert(error.message);
+      toast.error(error.message);
     } else {
       const redirect = searchParams.get('redirect') ?? '/';
       router.push(redirect);
@@ -96,7 +98,7 @@ export default function LoginPage() {
       });
       error = signUpError;
       if (!error) {
-        alert('Check your email for the confirmation link!');
+        toast.success('Check your email for the confirmation link!');
       }
     } else {
       const { error: signInError } = await supabase.auth.signInWithPassword({
@@ -111,7 +113,7 @@ export default function LoginPage() {
     }
 
     if (error) {
-      alert(error.message);
+      toast.error(error.message);
     }
     setLoading(false);
   }
