@@ -14,6 +14,7 @@ are the pieces that are easy to get subtly wrong.
 ## What's actually implemented vs. scaffolded
 
 **Implemented (real logic, matches the corrected PRD):**
+
 - Full database schema + RLS baseline (`supabase/migrations/`)
 - The three-checkpoint live data pipeline (`poll-fixtures`,
   `poll-half-time-snapshots`, `poll-full-time-snapshots`)
@@ -24,6 +25,7 @@ are the pieces that are easy to get subtly wrong.
   API routes
 
 **Scaffolded only (folder + a placeholder page/comment, no real UI):**
+
 - Buddy AI, animations, sound system
 - Room chat, leaderboards, trophy room, fantasy team builder
 - Most page components under `app/(main)/`
@@ -73,7 +75,7 @@ npm install
 ```bash
 supabase login
 supabase init          # if it asks to overwrite supabase/config.toml, say no — one is already here
-supabase link --project-ref <your-project-ref>
+supabase link --project-ref rmkpadixdmmbczmmulwn
 supabase db push        # runs the three migrations in supabase/migrations/
 ```
 

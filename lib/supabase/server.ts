@@ -1,8 +1,9 @@
 // Server-side Supabase client for use in Server Components, Route
 // Handlers, and Server Actions.
-import { createServerClient } from '@supabase/ssr';
-import { cookies } from 'next/headers';
-import type { Database } from '@/types';
+// Extended session configuration for 30-day persistent sessions.
+import { createServerClient } from "@supabase/ssr";
+import { cookies } from "next/headers";
+import type { Database } from "@/types";
 
 export function createClient() {
   const cookieStore = cookies();
@@ -17,7 +18,7 @@ export function createClient() {
         setAll(cookiesToSet) {
           try {
             cookiesToSet.forEach(({ name, value, options }) =>
-              cookieStore.set(name, value, options)
+              cookieStore.set(name, value, options),
             );
           } catch {
             // Called from a Server Component — middleware handles the
@@ -25,6 +26,12 @@ export function createClient() {
           }
         },
       },
-    }
+      auth: {
+        // 30 days in seconds — extended session for Nigerian EPL fans
+        // who may have intermittent connectivity
+        autoRefreshToken: true,
+        persistSession: true,
+      },
+    },
   );
 }
