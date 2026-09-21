@@ -14,13 +14,12 @@ export const supabase = createClient(
   Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
 );
 
-export function normalizeStatus(apiFootballStatus: string): string {
+export function normalizeFootballDataStatus(status: string): string {
   const map: Record<string, string> = {
-    'TBD': 'scheduled', 'NS': 'scheduled',
-    '1H': 'live', 'HT': 'half_time', '2H': 'live',
-    'ET': 'live', 'BT': 'live', 'P': 'live',
-    'FT': 'full_time', 'AET': 'full_time', 'PEN': 'full_time',
-    'PST': 'postponed', 'CANC': 'cancelled', 'SUSP': 'suspended', 'ABD': 'cancelled',
+    SCHEDULED: 'scheduled', TIMED: 'scheduled',
+    IN_PLAY: 'live', PAUSED: 'half_time',
+    FINISHED: 'full_time', AWARDED: 'full_time',
+    POSTPONED: 'postponed', SUSPENDED: 'suspended', CANCELLED: 'cancelled',
   };
-  return map[apiFootballStatus] ?? 'scheduled';
+  return map[status] ?? 'scheduled';
 }

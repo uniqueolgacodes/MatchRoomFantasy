@@ -1,20 +1,29 @@
 // Full-time checkpoint poller. Runs every 5 minutes (§6.5).
 //
-// Fires for matches at kickoff + 90min that haven't reached full_time
-// yet. Retries every tick until FT/AET/PEN is confirmed. On capture,
-// also attempts a statistics call for cards/corners — if that call
-// fails, the FT snapshot is still written with null card/corner
-// values and the affected markets void at settlement rather than
-// blocking the whole match from settling (§6.3).
+// Source: football-data.org — see poll-half-time-snapshots/index.ts
+// for why API-Football was dropped (season restriction + a wrong-id
+// bug, both fixed by switching providers rather than patching them).
 //
-// Inserting the full_time row fires the on_full_time_snapshot trigger
-// (§6.6 / migration 0001), which kicks off score-gameweek and
-// settle-predictions.
+// One real trade-off from this switch: football-data.org's free tier
+// doesn't include cards, corners, or lineups (confirmed, current
+// policy) — so home_cards/away_cards/home_corners/away_corners are
+// always null here, not attempted. The settlement engine
+// (settle-predictions) already voids a market when its resolution
+// data is missing, so cards/corners predictions will always void
+// rather than resolve. Worth deciding whether to drop those two
+// market types from the prediction catalog entirely, since a market
+// that can never settle isn't a great thing to show as available.
+//
+// Fires for matches at kickoff + 90min that haven't reached
+// full_time yet. Retries every tick until FINISHED is confirmed.
+// Inserting the full_time row fires the on_full_time_snapshot
+// trigger (§6.6 / migration 0001), which kicks off score-gameweek
+// and settle-predictions.
 
-import { supabase, Sentry, normalizeStatus } from '../_shared/clients.ts';
-import { checkBudget } from '../_shared/budget-guard.ts';
+import { supabase, Sentry, normalizeFootballDataStatus } from '../_shared/clients.ts';
+import { checkFootballDataRateLimit } from '../_shared/rate-limiter.ts';
 
-const API_FOOTBALL_KEY = Deno.env.get('API_FOOTBALL_KEY')!;
+const FOOTBALL_DATA_KEY = Deno.env.get('FOOTBALL_DATA_KEY')!;
 
 Deno.serve(async () => {
   const { data: due } = await supabase
@@ -29,109 +38,73 @@ Deno.serve(async () => {
   }
 
   let captured = 0;
+  let rateLimited = 0;
+
   for (const match of due) {
-    const allowed = await checkBudget('api-football');
+    const allowed = await checkFootballDataRateLimit();
     if (!allowed) {
-      Sentry.captureMessage('api-football budget exhausted (FT poll)', 'warning');
-      break;
+      rateLimited++;
+      console.warn(`[poll-full-time-snapshots] rate limit reached, deferring match ${match.id} to next tick`);
+      continue;
     }
 
     try {
-      const res = await fetch(
-        `https://v3.football.api-sports.io/fixtures?id=${match.external_id}`,
-        { headers: { 'x-apisports-key': API_FOOTBALL_KEY } }
-      );
-      if (!res.ok) throw new Error(`API-Football ${res.status}`);
-      const json = await res.json();
-      const fixture = json.response?.[0];
-      if (!fixture) continue;
+      const res = await fetch(`https://api.football-data.org/v4/matches/${match.external_id}`, {
+        headers: { 'X-Auth-Token': FOOTBALL_DATA_KEY },
+      });
+      if (!res.ok) {
+        const bodyText = await res.text().catch(() => '');
+        console.error(`[poll-full-time-snapshots] football-data.org ${res.status}:`, bodyText);
+        throw new Error(`football-data.org ${res.status}: ${bodyText.slice(0, 300)}`);
+      }
+      const fixture = await res.json();
+      const status = normalizeFootballDataStatus(fixture.status);
 
-      const shortStatus = fixture.fixture.status.short;
-      const isFinished = ['FT', 'AET', 'PEN'].includes(shortStatus);
-
-      if (!isFinished) {
+      if (status !== 'full_time') {
         // Not done yet — update minute/status, retry next tick.
         await supabase.from('matches')
-          .update({ minute: fixture.fixture.status.elapsed, status: normalizeStatus(shortStatus) })
+          .update({ minute: fixture.minute ?? null, status })
           .eq('id', match.id);
         continue;
       }
 
-      // Attempt the statistics call for cards/corners. A failure here
-      // doesn't block the FT snapshot — it just leaves those two
-      // fields null, and the affected markets void at settlement.
-      let cards: { home: number | null; away: number | null } = { home: null, away: null };
-      let corners: { home: number | null; away: number | null } = { home: null, away: null };
-      try {
-        const statsAllowed = await checkBudget('api-football');
-        if (statsAllowed) {
-          const statsRes = await fetch(
-            `https://v3.football.api-sports.io/fixtures/statistics?fixture=${match.external_id}`,
-            { headers: { 'x-apisports-key': API_FOOTBALL_KEY } }
-          );
-          if (statsRes.ok) {
-            const statsJson = await statsRes.json();
-            const parsed = parseCardsAndCorners(statsJson.response, match.external_id);
-            cards = parsed.cards;
-            corners = parsed.corners;
-          }
-        }
-      } catch (statsErr) {
-        Sentry.captureException(statsErr, { extra: { match_id: match.id, phase: 'stats-call' } });
+      const ftHome = fixture.score?.fullTime?.home ?? null;
+      const ftAway = fixture.score?.fullTime?.away ?? null;
+      if (ftHome === null || ftAway === null) {
+        // FINISHED but score not populated yet (rare, but the free
+        // tier's "delayed" scores mean this can lag by a tick) —
+        // retry next cycle rather than writing an incomplete snapshot.
+        console.warn(`[poll-full-time-snapshots] match ${match.id} FINISHED but score.fullTime missing, retrying`);
+        continue;
       }
 
       const { error } = await supabase.from('match_snapshots').insert({
         match_id: match.id,
         checkpoint: 'full_time',
-        home_score: fixture.goals.home,
-        away_score: fixture.goals.away,
-        home_cards: cards.home,
-        away_cards: cards.away,
-        home_corners: corners.home,
-        away_corners: corners.away,
+        home_score: ftHome,
+        away_score: ftAway,
+        home_cards: null,
+        away_cards: null,
+        home_corners: null,
+        away_corners: null,
         raw_payload: fixture,
       });
 
       if (!error) {
         captured++;
         await supabase.from('matches')
-          .update({ status: 'full_time', home_score: fixture.goals.home, away_score: fixture.goals.away })
+          .update({ status: 'full_time', home_score: ftHome, away_score: ftAway })
           .eq('id', match.id);
+      } else {
+        console.error('[poll-full-time-snapshots] insert failed for match', match.id, error);
+        Sentry.captureException(error, { extra: { match_id: match.id } });
       }
     } catch (err) {
+      console.error('[poll-full-time-snapshots] error for match', match.id, err);
       Sentry.captureException(err, { extra: { match_id: match.id } });
       continue;
     }
   }
 
-  return Response.json({ ok: true, captured });
+  return Response.json({ ok: true, captured, rateLimited });
 });
-
-function parseCardsAndCorners(statsResponse: any[], externalId: number) {
-  // API-Football returns one block per team with a "statistics" array
-  // of { type, value } pairs — shape may need adjusting once tested
-  // against real fixture IDs.
-  const result = {
-    cards: { home: null as number | null, away: null as number | null },
-    corners: { home: null as number | null, away: null as number | null },
-  };
-  if (!Array.isArray(statsResponse) || statsResponse.length < 2) return result;
-
-  const [homeTeam, awayTeam] = statsResponse;
-  const extract = (stats: any[], type: string) => {
-    const found = stats?.find((s: any) => s.type === type);
-    return found ? Number(found.value) || 0 : null;
-  };
-
-  const homeYellow = extract(homeTeam.statistics, 'Yellow Cards') ?? 0;
-  const homeRed = extract(homeTeam.statistics, 'Red Cards') ?? 0;
-  const awayYellow = extract(awayTeam.statistics, 'Yellow Cards') ?? 0;
-  const awayRed = extract(awayTeam.statistics, 'Red Cards') ?? 0;
-
-  result.cards.home = homeYellow + homeRed;
-  result.cards.away = awayYellow + awayRed;
-  result.corners.home = extract(homeTeam.statistics, 'Corner Kicks');
-  result.corners.away = extract(awayTeam.statistics, 'Corner Kicks');
-
-  return result;
-}

@@ -1,16 +1,29 @@
 // Half-time checkpoint poller. Runs every 5 minutes (§6.5).
 //
-// Fires for matches at kickoff + 45min that haven't captured an HT
-// snapshot yet. If the API still shows the first half, only the
-// minute is updated and the next tick retries. Once HT/2H/ET/FT/PEN
-// is returned, the half-time score is captured from score.halftime
-// (not the live score) so the snapshot is exact regardless of when
-// the poll happened to tick — per §6.3.
+// Source: football-data.org — see the comment history in
+// poll-full-time-snapshots/index.ts for why API-Football was dropped
+// entirely (season restriction + a wrong-id-namespace bug).
+//
+// Every call is gated by the shared rate limiter (checkFootballData
+// RateLimit), which enforces football-data.org's 10 req/min limit
+// across ALL functions that call it, not just this one. A blocked
+// call here just means "retry next tick" — the same graceful pattern
+// already used for "match hasn't reached half-time yet".
+//
+// On a successful half-time capture, this ALSO opens the two
+// half-time-only prediction markets for that match (second-half
+// winner, HT/FT combo) — they're tightly coupled to this exact
+// moment, so creating them here (rather than a separate function)
+// keeps that coupling explicit. They lock a few minutes after the
+// break, per the "a few minutes of grace" design discussed earlier
+// — cron timing isn't perfectly precise to the second, so a hard
+// zero-second window would be unusable.
 
-import { supabase, Sentry, normalizeStatus } from '../_shared/clients.ts';
-import { checkBudget } from '../_shared/budget-guard.ts';
+import { supabase, Sentry, normalizeFootballDataStatus } from '../_shared/clients.ts';
+import { checkFootballDataRateLimit } from '../_shared/rate-limiter.ts';
 
-const API_FOOTBALL_KEY = Deno.env.get('API_FOOTBALL_KEY')!;
+const FOOTBALL_DATA_KEY = Deno.env.get('FOOTBALL_DATA_KEY')!;
+const HALF_TIME_MARKET_WINDOW_MINUTES = 3;
 
 Deno.serve(async () => {
   const { data: due } = await supabase
@@ -33,56 +46,100 @@ Deno.serve(async () => {
   const pending = due.filter((m) => !alreadyCaptured.has(m.id));
 
   let captured = 0;
+  let rateLimited = 0;
+
   for (const match of pending) {
-    const allowed = await checkBudget('api-football');
+    const allowed = await checkFootballDataRateLimit();
     if (!allowed) {
-      Sentry.captureMessage('api-football budget exhausted (HT poll)', 'warning');
-      break;
+      rateLimited++;
+      console.warn(`[poll-half-time-snapshots] rate limit reached, deferring match ${match.id} to next tick`);
+      continue;
     }
 
     try {
-      const res = await fetch(
-        `https://v3.football.api-sports.io/fixtures?id=${match.external_id}`,
-        { headers: { 'x-apisports-key': API_FOOTBALL_KEY } }
-      );
-      if (!res.ok) throw new Error(`API-Football ${res.status}`);
-      const json = await res.json();
-      const fixture = json.response?.[0];
-      if (!fixture) continue;
+      const res = await fetch(`https://api.football-data.org/v4/matches/${match.external_id}`, {
+        headers: { 'X-Auth-Token': FOOTBALL_DATA_KEY },
+      });
+      if (!res.ok) {
+        const bodyText = await res.text().catch(() => '');
+        console.error(`[poll-half-time-snapshots] football-data.org ${res.status}:`, bodyText);
+        throw new Error(`football-data.org ${res.status}: ${bodyText.slice(0, 300)}`);
+      }
+      const fixture = await res.json();
+      const status = normalizeFootballDataStatus(fixture.status);
 
-      const status = normalizeStatus(fixture.fixture.status.short);
-
-      if (status === 'live' && fixture.fixture.status.short === '1H') {
-        // Still first half — just update the minute, retry next tick.
+      if (status === 'live') {
         await supabase.from('matches')
-          .update({ minute: fixture.fixture.status.elapsed, status: 'live' })
+          .update({ minute: fixture.minute ?? null, status: 'live' })
           .eq('id', match.id);
         continue;
       }
 
-      if (['half_time', 'live', 'full_time'].includes(status)) {
+      if (['half_time', 'full_time'].includes(status)) {
+        const htHome = fixture.score?.halfTime?.home ?? fixture.score?.halftime?.home ?? null;
+        const htAway = fixture.score?.halfTime?.away ?? fixture.score?.halftime?.away ?? null;
+        if (htHome === null || htAway === null) {
+          console.warn(`[poll-half-time-snapshots] match ${match.id} past HT but score.halfTime missing, retrying`);
+          continue;
+        }
+
         const { error } = await supabase.from('match_snapshots').insert({
           match_id: match.id,
           checkpoint: 'half_time',
-          home_score: fixture.score.halftime.home,
-          away_score: fixture.score.halftime.away,
+          home_score: htHome,
+          away_score: htAway,
           raw_payload: fixture,
         });
+
         if (!error) {
           captured++;
           await supabase.from('matches')
             .update({ status: 'half_time', minute: 45 })
             .eq('id', match.id);
-          // Half-time market set opens as soon as the snapshot lands —
-          // see lib/predictions/open-halftime-markets.ts for the
-          // client/RPC that reads match_snapshots to build them.
+          await openHalfTimeMarkets(match.id);
+        } else {
+          console.error('[poll-half-time-snapshots] insert failed for match', match.id, error);
+          Sentry.captureException(error, { extra: { match_id: match.id } });
         }
       }
     } catch (err) {
+      console.error('[poll-half-time-snapshots] error for match', match.id, err);
       Sentry.captureException(err, { extra: { match_id: match.id } });
-      continue; // serve stale state, move to next match
+      continue;
     }
   }
 
-  return Response.json({ ok: true, captured });
+  return Response.json({ ok: true, captured, rateLimited });
 });
+
+async function openHalfTimeMarkets(matchId: string) {
+  const locksAt = new Date(Date.now() + HALF_TIME_MARKET_WINDOW_MINUTES * 60 * 1000).toISOString();
+
+  const { error } = await supabase.from('predictions').insert([
+    {
+      match_id: matchId,
+      phase: 'half_time',
+      category: 'second_half_winner',
+      question: 'Who wins the second half?',
+      options: ['home', 'away', 'draw'],
+      odds_multiplier: 2.0,
+      locks_at: locksAt,
+      resolution_rule: { type: 'second_half_winner' },
+    },
+    {
+      match_id: matchId,
+      phase: 'half_time',
+      category: 'ht_ft_combo',
+      question: 'Correct half-time/full-time result?',
+      options: ['home/home', 'home/draw', 'home/away', 'draw/home', 'draw/draw', 'draw/away', 'away/home', 'away/draw', 'away/away'],
+      odds_multiplier: 4.0,
+      locks_at: locksAt,
+      resolution_rule: { type: 'ht_ft_combo' },
+    },
+  ]);
+
+  if (error) {
+    console.error('[poll-half-time-snapshots] failed to open half-time markets for match', matchId, error);
+    Sentry.captureException(error, { extra: { match_id: matchId, phase: 'open-half-time-markets' } });
+  }
+}

@@ -24,6 +24,7 @@
 // can't abort the entire run.
 import { supabase, Sentry } from '../_shared/clients.ts';
 import { getTeamIdMap, resolveTeamId, syncTeamCrests } from '../_shared/teams.ts';
+import { checkFootballDataRateLimit } from '../_shared/rate-limiter.ts';
 
 const FOOTBALL_DATA_KEY = Deno.env.get('FOOTBALL_DATA_KEY')!;
 const API = 'https://api.football-data.org/v4';
@@ -49,6 +50,12 @@ function buildWindows(): Array<{ from: Date; to: Date }> {
 }
 
 async function fetchMatchesForWindow(from: Date, to: Date): Promise<any[]> {
+  const allowed = await checkFootballDataRateLimit();
+  if (!allowed) {
+    console.warn('[poll-fixtures] rate limit reached, skipping window — will catch up next 6-hour run');
+    return [];
+  }
+
   const params = new URLSearchParams({
     competitions: 'PL',
     dateFrom: toDateParam(from),

@@ -20,6 +20,7 @@
 // comes back unexpected.
 
 import { supabase, Sentry } from './clients.ts';
+import { checkFootballDataRateLimit } from './rate-limiter.ts';
 
 const FOOTBALL_DATA_KEY = Deno.env.get('FOOTBALL_DATA_KEY')!;
 const API = 'https://api.football-data.org/v4';
@@ -90,6 +91,12 @@ export function resolveTeamId(
  * actually missing rather than on every poll.
  */
 export async function syncTeamCrests(): Promise<{ matched: number; unmatched: string[] }> {
+  const allowed = await checkFootballDataRateLimit();
+  if (!allowed) {
+    console.warn('[sync-teams] rate limit reached, skipping this run — self-heals or weekly cron will retry');
+    return { matched: 0, unmatched: [] };
+  }
+
   const res = await fetch(`${API}/competitions/PL/teams`, {
     headers: { 'X-Auth-Token': FOOTBALL_DATA_KEY },
   });
