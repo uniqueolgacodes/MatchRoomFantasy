@@ -3,7 +3,7 @@
 // the set_username RPC (supabase/migrations/0004_onboarding.sql),
 // which enforces format/uniqueness/reserved-words server-side rather
 // than trusting client-side checks alone.
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { useAuth } from '@/providers/AuthProvider';
@@ -21,11 +21,22 @@ export default function UsernamePage() {
   const [error, setError] = useState<string | null>(null);
 
   // Pre-fill with the auto-generated username (user_xxxxxxxx from
-  // handle_new_user) so the field isn't empty, but it still reads as
-  // a placeholder the person should replace.
+  // handle_new_user) exactly once, so the field isn't empty but
+  // still reads as a placeholder the person should replace.
+  //
+  // This has to run only once. The previous version guarded on
+  // `!username`, which re-fires every time the field becomes empty —
+  // including when the person deletes it themselves while typing —
+  // so a fast backspace would "revert" the field back to the
+  // placeholder mid-edit. A ref tracks whether we've already done
+  // the one-time prefill, independent of the field's current value.
+  const hasPrefilled = useRef(false);
   useEffect(() => {
-    if (profile?.username && !username) setUsername(profile.username.replace(/^user_/, ''));
-  }, [profile, username]);
+    if (hasPrefilled.current) return;
+    if (!profile?.username) return;
+    hasPrefilled.current = true;
+    setUsername(profile.username.replace(/^user_/, ''));
+  }, [profile]);
 
   useEffect(() => {
     if (!username || username.length < 3) {
@@ -50,7 +61,7 @@ export default function UsernamePage() {
       setSubmitting(false);
       return;
     }
-    router.push('/onboarding/buddy');
+    router.push('/onboarding/age-consent');
   }
 
   const canSubmit = available === true && !submitting;

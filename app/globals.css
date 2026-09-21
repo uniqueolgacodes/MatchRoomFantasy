@@ -44,9 +44,122 @@ body {
   animation: toast-in 0.25s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
+/* Onboarding + Buddy preview. Kept as plain CSS (no framer-motion
+   import) so the onboarding route — every new signup's first
+   screen — stays light. Mirrors the landing page's "CSS over JS for
+   anything that runs on first load" choice. */
+
+@keyframes fade-scale-in {
+  from {
+    opacity: 0;
+    transform: scale(0.94) translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+.animate-fade-scale-in {
+  animation: fade-scale-in 0.5s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+/* Buddy's idle bob — a slow, small float so it reads as "alive"
+   without being distracting or costing much on low-end devices. */
+@keyframes buddy-float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-6px); }
+}
+
+.animate-buddy-float {
+  animation: buddy-float 3.2s ease-in-out infinite;
+}
+
+/* Buddy's glance: pupils drift left, back to center, right, back to
+   center, then pause on the viewer for the smile beat below. One
+   loop is the whole "look left, look right, look at you" beat the
+   preview is built around. */
+@keyframes buddy-look {
+  0%, 12% { transform: translateX(0); }
+  25%, 35% { transform: translateX(-3.5px); }
+  48%, 58% { transform: translateX(0); }
+  70%, 80% { transform: translateX(3.5px); }
+  92%, 100% { transform: translateX(0); }
+}
+
+.animate-buddy-look {
+  animation: buddy-look 6s ease-in-out infinite;
+}
+
+/* The smile widens slightly right as the eyes settle back on the
+   viewer each loop — timed to land just after buddy-look returns to
+   center, so the two read as one "...and then a smile" beat. */
+@keyframes buddy-smile {
+  0%, 84% { transform: scaleY(1); }
+  92% { transform: scaleY(1.3); }
+  100% { transform: scaleY(1); }
+}
+
+.animate-buddy-smile {
+  animation: buddy-smile 6s ease-in-out infinite;
+  transform-origin: center;
+}
+
+@keyframes speech-pop {
+  from {
+    opacity: 0;
+    transform: scale(0.85) translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+.animate-speech-pop {
+  animation: speech-pop 0.35s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+@keyframes wave {
+  0%, 100% { transform: rotate(0deg); }
+  25% { transform: rotate(-14deg); }
+  75% { transform: rotate(10deg); }
+}
+
+.animate-wave {
+  animation: wave 1.8s ease-in-out infinite;
+  transform-origin: 70% 70%;
+}
+
+/* A handful of confetti-style dots for the "onboarding complete"
+   moment — CSS only, no canvas-confetti import needed for something
+   this small. Each dot is positioned/delayed via inline style. */
+@keyframes confetti-fall {
+  0% {
+    opacity: 0;
+    transform: translateY(-12px) rotate(0deg);
+  }
+  15% { opacity: 1; }
+  100% {
+    opacity: 0;
+    transform: translateY(120px) rotate(200deg);
+  }
+}
+
+.animate-confetti-fall {
+  animation: confetti-fall 1.6s ease-in both;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .animate-rise-in,
-  .animate-toast-in {
+  .animate-toast-in,
+  .animate-fade-scale-in,
+  .animate-buddy-float,
+  .animate-buddy-look,
+  .animate-buddy-smile,
+  .animate-speech-pop,
+  .animate-wave,
+  .animate-confetti-fall {
     animation: none;
   }
 }

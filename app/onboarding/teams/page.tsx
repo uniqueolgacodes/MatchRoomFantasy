@@ -1,9 +1,9 @@
 'use client';
-// PRD §9.2 Onboarding — step 3 (final). Favourite team is optional
-// per the PRD, so this step never blocks — both buttons complete
-// onboarding, one with a team set and one without. This is also the
-// step that sets onboarding_completed_at, which is what the
-// middleware's onboarding gate checks.
+// PRD §9.2 Onboarding — second-to-last step. Favourite team is
+// optional per the PRD, so this step never blocks — both buttons
+// move on, one with a team set and one without. Onboarding itself
+// now finishes one step later, in /onboarding/guide — this step only
+// sets favourite_team_id / user_teams.
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
@@ -36,10 +36,7 @@ export default function TeamsOnboardingPage() {
     if (!user) return;
     setSubmitting(true);
 
-    await supabase
-      .from('profiles')
-      .update({ favourite_team_id: teamId, onboarding_completed_at: new Date().toISOString() })
-      .eq('id', user.id);
+    await supabase.from('profiles').update({ favourite_team_id: teamId }).eq('id', user.id);
 
     // Following your favourite team feeds the personalized Hub (PRD
     // §19.4) — this is a best-effort insert, not required to finish.
@@ -48,7 +45,7 @@ export default function TeamsOnboardingPage() {
     }
 
     await refreshProfile();
-    router.push('/');
+    router.push('/onboarding/guide');
   }
 
   return (

@@ -18,5 +18,15 @@ enable_signup = true
 enable_signup = true
 enable_confirmations = true
 
+# Branded confirm-signup email (supabase/templates/confirmation.html)
+# instead of Supabase's default plain-text template. This only
+# affects LOCAL dev (`supabase start`, viewed via Inbucket) — the
+# hosted project's emails are controlled separately, in the
+# Dashboard under Authentication -> Email Templates -> Confirm
+# signup. Paste the same file's contents there too.
+[auth.email.template.confirmation]
+subject = "Confirm your email — MatchRoom Fantasy"
+content_path = "./supabase/templates/confirmation.html"
+
 [edge_runtime]
 enabled = true

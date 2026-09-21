@@ -71,7 +71,7 @@ export async function middleware(request: NextRequest) {
       .maybeSingle();
 
     if (profile && !profile.onboarding_completed_at) {
-      return NextResponse.redirect(new URL('/onboarding/username', request.url));
+      return NextResponse.redirect(new URL('/onboarding/welcome', request.url));
     }
   }
 

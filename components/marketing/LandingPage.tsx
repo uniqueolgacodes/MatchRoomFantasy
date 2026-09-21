@@ -182,7 +182,7 @@ function ChatMock() {
         <Bubble from="You" mine>
           matchroom.app/r/saturday-squad
         </Bubble>
-        <Bubble from="Tunde">in 🔒</Bubble>
+        <Bubble from="Tunde">🔒'd in</Bubble>
       </div>
     </div>
   );
@@ -193,9 +193,8 @@ function Bubble({ from, mine, children }: { from: string; mine?: boolean; childr
     <div className={`flex flex-col ${mine ? 'items-end' : 'items-start'}`}>
       <span className="mb-1 px-1 text-xs text-white/35">{from}</span>
       <span
-        className={`max-w-[80%] rounded-2xl px-4 py-2 text-sm ${
-          mine ? 'rounded-tr-sm bg-pitch text-white' : 'rounded-tl-sm bg-white/[0.06] text-white/80'
-        }`}
+        className={`max-w-[80%] rounded-2xl px-4 py-2 text-sm ${mine ? 'rounded-tr-sm bg-pitch text-white' : 'rounded-tl-sm bg-white/[0.06] text-white/80'
+          }`}
       >
         {children}
       </span>
