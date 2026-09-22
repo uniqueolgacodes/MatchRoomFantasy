@@ -1,6 +1,7 @@
 // Maps the short error codes raised by the Postgres RPCs
-// (place_prediction_stake, join_room_by_code, ...) to HTTP responses.
-// Copy is deliberately free of betting language (PRD §11.5).
+// (place_prediction_stake, join_room_by_code, create_room, ...) to
+// HTTP responses. Copy is deliberately free of betting language
+// (PRD §11.5).
 import { NextResponse } from 'next/server';
 
 const KNOWN_ERRORS: Record<string, { status: number; message: string }> = {
@@ -16,6 +17,9 @@ const KNOWN_ERRORS: Record<string, { status: number; message: string }> = {
   room_not_found: { status: 404, message: 'Room not found.' },
   room_full: { status: 409, message: 'This room is full.' },
   banned: { status: 403, message: "You can't join this room." },
+  invalid_name: { status: 400, message: 'Give your room a name (3-60 characters).' },
+  invalid_room_type: { status: 400, message: 'Invalid room type.' },
+  match_not_found: { status: 404, message: 'Match not found.' },
 };
 
 export function rpcErrorResponse(error: { message: string }) {

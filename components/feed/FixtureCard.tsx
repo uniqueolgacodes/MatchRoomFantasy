@@ -32,14 +32,14 @@ export function FixtureCard({
   const hasScore = homeScore !== null && awayScore !== null;
 
   return (
-    <div className="flex items-center justify-between rounded-lg bg-ink-soft px-4 py-3">
-      <div className="flex items-center gap-2.5 text-sm font-semibold">
+    <div className="flex items-center justify-between gap-3 rounded-lg bg-ink-soft px-4 py-3">
+      <div className="flex min-w-0 flex-1 items-center gap-2 text-sm font-semibold">
         <TeamBadge shortName={homeShortName} crestUrl={homeCrestUrl} />
-        <span className="text-white/30">vs</span>
+        <span className="shrink-0 text-xs text-white/30">vs</span>
         <TeamBadge shortName={awayShortName} crestUrl={awayCrestUrl} />
       </div>
 
-      <div className="text-right">
+      <div className="shrink-0 text-right">
         {hasScore ? (
           <p className="text-sm font-bold tabular-nums">
             {homeScore} – {awayScore}
@@ -59,16 +59,14 @@ export function FixtureCard({
 }
 
 function TeamBadge({ shortName, crestUrl }: { shortName: string; crestUrl: string | null }) {
-  if (crestUrl) {
-    return (
-      <span className="flex h-7 w-7 shrink-0 items-center justify-center">
-        <Image src={crestUrl} alt={shortName} width={28} height={28} className="h-7 w-7 object-contain" />
-      </span>
-    );
-  }
   return (
-    <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-white/10 text-[10px] font-bold">
-      {shortName}
+    <span className="flex min-w-0 items-center gap-1.5">
+      {crestUrl ? (
+        <Image src={crestUrl} alt={shortName} width={24} height={24} className="h-6 w-6 shrink-0 object-contain" />
+      ) : (
+        <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-white/10 text-[9px] font-bold">{shortName}</span>
+      )}
+      <span className="truncate text-xs font-semibold text-white/80">{shortName}</span>
     </span>
   );
 }

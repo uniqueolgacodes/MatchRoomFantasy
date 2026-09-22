@@ -10,7 +10,7 @@ import { createServerClient } from '@supabase/ssr';
 // you need a session to have a profile row to onboard).
 const PROTECTED = [
   '/rooms', '/profile', '/selections', '/world',
-  '/trophies', '/revival', '/team', '/onboarding',
+  '/trophies', '/revival', '/team', '/onboarding', '/match',
 ];
 
 // Routes exempt from the "finish onboarding first" redirect, even

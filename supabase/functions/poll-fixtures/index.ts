@@ -8,12 +8,25 @@
 // own teams.short_name, see _shared/teams.ts) instead of slugifying
 // the API's display name — see that file's comment for why.
 //
-// Fixture window: football-data.org's free tier rejects any
-// dateFrom/dateTo span over 10 days ("period must not exceed 10
-// days"), but the product wants a full 14-day look-ahead. Two
-// sequential 10-day-max requests cover 14 days between them — still
-// just 2 of football-data.org's 10 requests/minute budget, so this
-// costs nothing worth guarding.
+// Fixture window is now adaptive, not a fixed number of days. A
+// fixed 14-day window went blank during the 2026-27 season's new
+// "XL" international break (Premier League paused 21 Sep -> 10 Oct,
+// 19 days — FIFA merged what used to be separate September and
+// October breaks into one this season) — the window simply never
+// reached the next matchday, even though the data existed and was
+// one more request away. Instead, this rolls forward in
+// MAX_CHUNK_DAYS-wide steps (football-data.org's free-tier cap per
+// request is 10 days) until it's collected a real matchday's worth
+// of fixtures or hits MAX_LOOKAHEAD_DAYS, whichever comes first.
+// MAX_LOOKAHEAD_DAYS is sized to clear this season's other breaks
+// too (Nov 9-17, Mar 22-30) without manual upkeep each season.
+//
+// Every step goes through the shared rate limiter
+// (_shared/rate-limiter.ts, 8/min budget against football-data.org's
+// real 10/min limit) — worst case here is ~4 requests in one run,
+// nowhere near that budget, but the limiter is what makes "just keep
+// rolling forward" a safe design rather than a way to eventually
+// blow the quota during a long enough gap.
 //
 // Every error path here also console.error()s, in addition to the
 // Sentry capture — Sentry needs a configured project/DSN to actually
@@ -28,32 +41,19 @@ import { checkFootballDataRateLimit } from '../_shared/rate-limiter.ts';
 
 const FOOTBALL_DATA_KEY = Deno.env.get('FOOTBALL_DATA_KEY')!;
 const API = 'https://api.football-data.org/v4';
-const TOTAL_WINDOW_DAYS = 14; // the product requirement: fixtures up to 2 weeks ahead
 const MAX_CHUNK_DAYS = 10; // football-data.org free-tier cap per request
+const MIN_MATCHES_TARGET = 10; // roughly one full PL matchday — stop rolling forward once we've got at least this many
+const MAX_LOOKAHEAD_DAYS = 35; // hard safety cap regardless of target — covers every scheduled 2026-27 break with room to spare
 
 function toDateParam(d: Date): string {
   return d.toISOString().slice(0, 10);
 }
 
-/** Splits [now, now+TOTAL_WINDOW_DAYS] into <=MAX_CHUNK_DAYS-wide windows. */
-function buildWindows(): Array<{ from: Date; to: Date }> {
-  const start = new Date();
-  const end = new Date(start.getTime() + TOTAL_WINDOW_DAYS * 24 * 60 * 60 * 1000);
-  const windows: Array<{ from: Date; to: Date }> = [];
-  let cursor = start;
-  while (cursor < end) {
-    const chunkEnd = new Date(Math.min(cursor.getTime() + MAX_CHUNK_DAYS * 24 * 60 * 60 * 1000, end.getTime()));
-    windows.push({ from: cursor, to: chunkEnd });
-    cursor = chunkEnd;
-  }
-  return windows;
-}
-
-async function fetchMatchesForWindow(from: Date, to: Date): Promise<any[]> {
+async function fetchMatchesForWindow(from: Date, to: Date): Promise<{ matches: any[]; rateLimited: boolean }> {
   const allowed = await checkFootballDataRateLimit();
   if (!allowed) {
-    console.warn('[poll-fixtures] rate limit reached, skipping window — will catch up next 6-hour run');
-    return [];
+    console.warn('[poll-fixtures] rate limit reached, stopping the roll-forward here — will resume next 6-hour run');
+    return { matches: [], rateLimited: true };
   }
 
   const params = new URLSearchParams({
@@ -72,7 +72,35 @@ async function fetchMatchesForWindow(from: Date, to: Date): Promise<any[]> {
   }
   const data = await res.json();
   console.log('[poll-fixtures] window', toDateParam(from), '->', toDateParam(to), 'returned', data.matches?.length ?? 0, 'matches');
-  return data.matches ?? [];
+  return { matches: data.matches ?? [], rateLimited: false };
+}
+
+/**
+ * Rolls forward from today in MAX_CHUNK_DAYS-wide steps until either
+ * MIN_MATCHES_TARGET matches have been collected, the rate limiter
+ * says stop, or MAX_LOOKAHEAD_DAYS is reached — whichever comes
+ * first. Returns every match found across however many windows that
+ * took, plus a bit of bookkeeping for the response/logs.
+ */
+async function collectUpcomingMatches(): Promise<{ matches: any[]; windowsUsed: number; daysCovered: number; hitCap: boolean }> {
+  const start = new Date();
+  const hardEnd = new Date(start.getTime() + MAX_LOOKAHEAD_DAYS * 24 * 60 * 60 * 1000);
+
+  const allMatches: any[] = [];
+  let cursor = start;
+  let windowsUsed = 0;
+
+  while (allMatches.length < MIN_MATCHES_TARGET && cursor < hardEnd) {
+    const chunkEnd = new Date(Math.min(cursor.getTime() + MAX_CHUNK_DAYS * 24 * 60 * 60 * 1000, hardEnd.getTime()));
+    const { matches, rateLimited } = await fetchMatchesForWindow(cursor, chunkEnd);
+    windowsUsed++;
+    if (rateLimited) break;
+    allMatches.push(...matches);
+    cursor = chunkEnd;
+  }
+
+  const daysCovered = Math.round((cursor.getTime() - start.getTime()) / (24 * 60 * 60 * 1000));
+  return { matches: allMatches, windowsUsed, daysCovered, hitCap: cursor >= hardEnd };
 }
 
 Deno.serve(async () => {
@@ -101,19 +129,18 @@ Deno.serve(async () => {
       console.error('[poll-fixtures] teams table returned 0 rows — has 0005_seed_teams.sql been applied?');
     }
 
-    const windows = buildWindows();
-    const allMatches: any[] = [];
-    for (const w of windows) {
-      allMatches.push(...(await fetchMatchesForWindow(w.from, w.to)));
-    }
+    const { matches: rawMatches, windowsUsed, daysCovered, hitCap } = await collectUpcomingMatches();
+
     // Chunk boundaries can return the same match twice (dateTo of one
     // window == dateFrom of the next) — dedupe by football-data.org's
     // match id before processing. Harmless either way since the
     // upsert below is keyed on external_id, but no reason to do the
     // work twice.
     const seen = new Set<number>();
-    const matches = allMatches.filter((m) => (seen.has(m.id) ? false : (seen.add(m.id), true)));
-    console.log('[poll-fixtures] total unique matches across', windows.length, 'window(s):', matches.length);
+    const matches = rawMatches.filter((m) => (seen.has(m.id) ? false : (seen.add(m.id), true)));
+    console.log(
+      `[poll-fixtures] collected ${matches.length} unique match(es) across ${windowsUsed} window(s), covering ${daysCovered} day(s) ahead${hitCap ? ' (hit the lookahead cap without finding a full matchday — may genuinely be off-season)' : ''}`
+    );
 
     let upserted = 0;
     const skipped: string[] = [];
@@ -164,8 +191,8 @@ Deno.serve(async () => {
       Sentry.captureMessage(`poll-fixtures: skipped ${skipped.length} unmapped match(es): ${skipped.join(', ')}`);
     }
 
-    console.log(`[poll-fixtures] done. upserted=${upserted} skipped=${skipped.length} failed=${failed.length}`);
-    return Response.json({ ok: true, upserted, skipped: skipped.length, failed });
+    console.log(`[poll-fixtures] done. upserted=${upserted} skipped=${skipped.length} failed=${failed.length} daysCovered=${daysCovered}`);
+    return Response.json({ ok: true, upserted, skipped: skipped.length, failed, windowsUsed, daysCovered, hitCap });
   } catch (err) {
     console.error('[poll-fixtures] fatal error:', err);
     Sentry.captureException(err);

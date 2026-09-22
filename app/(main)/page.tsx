@@ -14,16 +14,7 @@ import { LandingPage } from '@/components/marketing/LandingPage';
 import { RoomListCard } from '@/components/room/RoomListCard';
 import { FixtureCard } from '@/components/feed/FixtureCard';
 import { NewsCard } from '@/components/feed/NewsCard';
-
-// Mirrors public.current_season() (0001_init.sql) — used only if the
-// RPC call fails, so the page still renders a sensible balance/room
-// lookup instead of erroring out.
-function fallbackSeason(): string {
-  const now = new Date();
-  const y = now.getFullYear();
-  const month = now.getMonth() + 1; // JS is 0-indexed, SQL extract() is 1-indexed
-  return month >= 8 ? `${y}-${y + 1}` : `${y - 1}-${y}`;
-}
+import { getCurrentBalance } from '@/lib/points/balance';
 
 const ROOM_TYPE_RANK: Record<string, number> = {
   season_league: 0,
@@ -43,8 +34,7 @@ export default async function HomePage() {
     return <LandingPage />;
   }
 
-  const [seasonRes, profileRes, roomsRes, userTeamsRes, fixturesRes, teamsRes] = await Promise.all([
-    supabase.rpc('current_season'),
+  const [profileRes, roomsRes, userTeamsRes, fixturesRes, teamsRes] = await Promise.all([
     supabase.from('profiles').select('username, display_name, favourite_team_id').eq('id', user.id).maybeSingle(),
     supabase
       .from('room_members')
@@ -60,12 +50,11 @@ export default async function HomePage() {
     supabase.from('teams').select('id, short_name, crest_url'),
   ]);
 
-  const season = (seasonRes.data as string | null) ?? fallbackSeason();
   const profile = profileRes.data;
   const followedTeamIds = (userTeamsRes.data ?? []).map((row) => row.team_id as string);
 
-  const [balanceRes, newsRes] = await Promise.all([
-    supabase.from('point_balances').select('balance').eq('user_id', user.id).eq('season', season).maybeSingle(),
+  const [balance, newsRes] = await Promise.all([
+    getCurrentBalance(supabase, user.id),
     followedTeamIds.length > 0
       ? supabase
           .from('news_articles')
@@ -75,11 +64,6 @@ export default async function HomePage() {
           .limit(6)
       : supabase.from('news_articles').select('title, summary, source, url, published_at').order('published_at', { ascending: false }).limit(6),
   ]);
-
-  // PRD §11.1 — 10 MP is the starting balance. A brand-new user has
-  // no point_balances row at all until their first transaction, so
-  // "no row" reads as 10, not 0.
-  const balance = balanceRes.data?.balance ?? 10;
 
   const rooms = (roomsRes.data ?? [])
     .map((row) => row.rooms as { id: string; name: string; room_type: string; is_official: boolean; is_pinned: boolean } | null)
@@ -147,7 +131,7 @@ export default async function HomePage() {
         )}
       </Section>
 
-      {/* Upcoming fixtures */}
+      {/* Upcoming fixtures — each links into the prediction board for that match */}
       <Section title="Fixtures">
         {fixtures.length > 0 ? (
           <div className="flex flex-col gap-2">
@@ -155,18 +139,19 @@ export default async function HomePage() {
               const home = teamsById.get(match.home_team_id);
               const away = teamsById.get(match.away_team_id);
               return (
-                <FixtureCard
-                  key={match.id}
-                  homeShortName={home?.shortName ?? match.home_team_id.slice(0, 3).toUpperCase()}
-                  awayShortName={away?.shortName ?? match.away_team_id.slice(0, 3).toUpperCase()}
-                  homeCrestUrl={home?.crestUrl ?? null}
-                  awayCrestUrl={away?.crestUrl ?? null}
-                  kickoff={match.kickoff}
-                  status={match.status}
-                  homeScore={match.home_score}
-                  awayScore={match.away_score}
-                  minute={match.minute}
-                />
+                <Link key={match.id} href={`/match/${match.id}`} className="block transition-opacity hover:opacity-80">
+                  <FixtureCard
+                    homeShortName={home?.shortName ?? match.home_team_id.slice(0, 3).toUpperCase()}
+                    awayShortName={away?.shortName ?? match.away_team_id.slice(0, 3).toUpperCase()}
+                    homeCrestUrl={home?.crestUrl ?? null}
+                    awayCrestUrl={away?.crestUrl ?? null}
+                    kickoff={match.kickoff}
+                    status={match.status}
+                    homeScore={match.home_score}
+                    awayScore={match.away_score}
+                    minute={match.minute}
+                  />
+                </Link>
               );
             })}
           </div>
