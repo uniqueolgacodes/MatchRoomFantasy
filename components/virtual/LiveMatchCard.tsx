@@ -6,6 +6,13 @@
 // new rows on `match_events` as they're inserted by
 // advance-virtual-matches. Real matches will be able to reuse this
 // exact pattern once their own live pipeline is worth animating.
+//
+// `picks` is server-fetched once (see /virtual/page.tsx for why it
+// has to be a separate query from the regular pre-match markets
+// fetch — a live match's predictions have already flipped to
+// `locked`, same as a real match's do at kickoff) and rendered
+// as-is; it doesn't need to be live-updated, since you can't place a
+// new one once the match has started.
 import { useEffect, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { TeamBadge } from './TeamBadge';
@@ -19,6 +26,12 @@ interface TeamInfo {
   secondaryColor: string;
 }
 
+export interface MyPick {
+  question: string;
+  answer: string;
+  stake: number;
+}
+
 interface LiveMatchCardProps {
   matchId: string;
   home: TeamInfo;
@@ -28,6 +41,7 @@ interface LiveMatchCardProps {
   initialMinute: number;
   initialStatus: 'live' | 'full_time';
   initialEvents: TickerEvent[];
+  picks: MyPick[];
 }
 
 export function LiveMatchCard({
@@ -39,6 +53,7 @@ export function LiveMatchCard({
   initialMinute,
   initialStatus,
   initialEvents,
+  picks,
 }: LiveMatchCardProps) {
   const [homeScore, setHomeScore] = useState(initialHomeScore);
   const [awayScore, setAwayScore] = useState(initialAwayScore);
@@ -100,6 +115,20 @@ export function LiveMatchCard({
         </span>
         <TeamColumn team={away} />
       </div>
+
+      {picks.length > 0 && (
+        <div className="mt-4 flex flex-col gap-1.5 border-t border-white/10 pt-4">
+          <p className="text-[11px] font-semibold uppercase tracking-wide text-white/30">Your picks</p>
+          {picks.map((pick, i) => (
+            <div key={i} className="flex items-center justify-between text-xs">
+              <span className="text-white/50">{pick.question}</span>
+              <span className="font-semibold text-pitch-light">
+                {pick.answer} · {pick.stake} MP
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
 
       <div className="mt-5 border-t border-white/10 pt-4">
         <EventTicker events={events} />

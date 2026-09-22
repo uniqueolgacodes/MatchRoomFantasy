@@ -7,6 +7,21 @@
 // predictions, settle-room-match, score-gameweek) then runs exactly
 // as it does for a real match, via code that already exists and
 // hasn't needed a single change for this to work.
+//
+// Bug fixed here: home_score/away_score on `matches` were only ever
+// written in the full-time branch at the bottom, never during the
+// live minutes. match_events rows were still inserted live (which is
+// why LiveMatchCard's event ticker updated correctly — it listens
+// for match_events INSERTs directly), but nothing was pushing an
+// UPDATE to `matches` with the new score in between, so the
+// scoreline itself sat frozen at 0-0 until the match actually ended.
+// Fix: tally goal-type match_events for this match on every tick
+// (not just the final one) and write that tally to `matches` every
+// time — the exact same "count actual goal events, one source of
+// truth" approach the full-time branch already used, just now run
+// continuously instead of once at the end. LiveMatchCard already
+// listens for `matches` UPDATEs and was always ready for this; it
+// just never received one mid-match.
 
 import { supabase, Sentry } from '../_shared/clients.ts';
 
@@ -72,23 +87,26 @@ Deno.serve(async () => {
         }
       }
 
+      // Live score tally, recomputed every tick (not just at
+      // full-time) from the actual match_events rows — same single
+      // source of truth the settlement branch below uses, just now
+      // kept in sync with `matches` continuously so the scoreline
+      // updates in real time instead of jumping from 0-0 straight to
+      // the final score only once the match ends.
+      const { data: goalEvents } = await supabase
+        .from('match_events')
+        .select('team_id')
+        .eq('match_id', match.id)
+        .eq('type', 'goal');
+
+      const homeScore = (goalEvents ?? []).filter((e) => e.team_id === match.home_team_id).length;
+      const awayScore = (goalEvents ?? []).filter((e) => e.team_id === match.away_team_id).length;
+
       const minuteDisplay = Math.min(15, Math.floor(elapsedSeconds / 60));
-      await supabase.from('matches').update({ minute: minuteDisplay }).eq('id', match.id);
+      await supabase.from('matches').update({ minute: minuteDisplay, home_score: homeScore, away_score: awayScore }).eq('id', match.id);
       if (dueTicks.length > 0) advanced++;
 
       if (elapsedSeconds >= MATCH_DURATION_SECONDS) {
-        // Final score is derived from goal-type events actually
-        // inserted, not a value stored separately at spawn time —
-        // one source of truth, no chance of the two drifting apart.
-        const { data: goalEvents } = await supabase
-          .from('match_events')
-          .select('team_id')
-          .eq('match_id', match.id)
-          .eq('type', 'goal');
-
-        const homeScore = (goalEvents ?? []).filter((e) => e.team_id === match.home_team_id).length;
-        const awayScore = (goalEvents ?? []).filter((e) => e.team_id === match.away_team_id).length;
-
         const { error: snapshotError } = await supabase.from('match_snapshots').insert({
           match_id: match.id,
           checkpoint: 'full_time',

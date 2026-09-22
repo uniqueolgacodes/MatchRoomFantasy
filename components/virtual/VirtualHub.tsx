@@ -3,8 +3,9 @@
 // genuinely needs to be shared across every card on the page: MP
 // balance. Everything else (live scores, the event ticker, countdowns)
 // is self-contained within its own card.
+import Link from 'next/link';
 import { useState } from 'react';
-import { LiveMatchCard } from './LiveMatchCard';
+import { LiveMatchCard, type MyPick } from './LiveMatchCard';
 import { UpcomingSetCard } from './UpcomingSetCard';
 import type { Market, StakeInfo } from '@/components/room/PredictionCard';
 import type { TickerEvent } from './EventTicker';
@@ -26,6 +27,7 @@ interface LiveMatch {
   minute: number;
   status: 'live' | 'full_time';
   events: TickerEvent[];
+  picks: MyPick[];
 }
 
 interface UpcomingSet {
@@ -56,6 +58,15 @@ export function VirtualHub({ liveMatches, upcomingSets, initialBalance, initialS
         </div>
       </div>
 
+      <div className="mt-3 flex justify-end">
+        <Link
+          href="/selections"
+          className="rounded-full border border-white/10 px-3.5 py-1.5 text-xs font-medium text-white/70 transition-colors hover:border-white/25 hover:text-white"
+        >
+          My Selections →
+        </Link>
+      </div>
+
       {liveMatches.length > 0 && (
         <section className="mt-6">
           <h2 className="font-display text-sm font-bold uppercase tracking-wide text-white/40">Live now</h2>
@@ -71,6 +82,7 @@ export function VirtualHub({ liveMatches, upcomingSets, initialBalance, initialS
                 initialMinute={match.minute}
                 initialStatus={match.status}
                 initialEvents={match.events}
+                picks={match.picks}
               />
             ))}
           </div>

@@ -5,6 +5,18 @@
 // straight in this file, in keeping with the "server-render whatever
 // doesn't need to be interactive" discipline the rest of the app
 // follows.
+//
+// Fix: a live match's pre-match predictions have already flipped
+// from `open` to `locked` by the time it's live (lock_expired_
+// predictions, same as real matches at kickoff) — the original
+// predictions fetch here filtered `.eq('status', 'open')`, which
+// correctly serves the upcoming-sets markets but also silently
+// dropped a live match's (now-locked) predictions from the result
+// entirely, so there was no way to look up what you'd staked on one.
+// That's now a separate query, scoped to liveMatchIds and with no
+// status filter — a live/locked/settled prediction still needs to be
+// found here, since the point is showing what you already predicted,
+// not what's still open to predict on.
 import { createClient } from '@/lib/supabase/server';
 import { getCurrentBalance } from '@/lib/points/balance';
 import { VirtualHub } from '@/components/virtual/VirtualHub';
@@ -12,6 +24,7 @@ import { VirtualIntroOverlay } from '@/components/virtual/VirtualIntroOverlay';
 import { TeamBadge } from '@/components/virtual/TeamBadge';
 import type { Market, StakeInfo } from '@/components/room/PredictionCard';
 import type { TickerEvent } from '@/components/virtual/EventTicker';
+import type { MyPick } from '@/components/virtual/LiveMatchCard';
 
 interface TeamRow {
   id: string;
@@ -60,7 +73,7 @@ export default async function VirtualHubPage() {
   const upcomingMatchIds = (upcomingRes.data ?? []).map((m) => m.id);
   const allActiveMatchIds = [...liveMatchIds, ...upcomingMatchIds];
 
-  const [eventsRes, predictionsRes] = await Promise.all([
+  const [eventsRes, predictionsRes, livePredictionsRes] = await Promise.all([
     liveMatchIds.length > 0
       ? supabase
           .from('match_events')
@@ -77,6 +90,12 @@ export default async function VirtualHubPage() {
           .eq('status', 'open')
           .order('created_at', { ascending: true })
       : Promise.resolve({ data: [] as any[] }),
+    // Deliberately no .eq('status', 'open') here — a live match's
+    // predictions are 'locked' by now, but we still need to find
+    // them to look up what was staked before kickoff.
+    liveMatchIds.length > 0
+      ? supabase.from('predictions').select('id, match_id, question').in('match_id', liveMatchIds)
+      : Promise.resolve({ data: [] as { id: string; match_id: string; question: string }[] }),
   ]);
 
   const predictionIds = (predictionsRes.data ?? []).map((p) => p.id);
@@ -93,6 +112,29 @@ export default async function VirtualHubPage() {
   const initialStakes: Record<string, StakeInfo> = Object.fromEntries(
     (myStakes ?? []).map((s) => [s.prediction_id, { answer: s.answer, stake: s.stake }])
   );
+
+  // Picks already placed on live matches — same idea as
+  // initialStakes above, but keyed by match rather than prediction,
+  // since LiveMatchCard displays "what did I predict on THIS match"
+  // rather than a per-market staking widget.
+  const livePredictionIds = (livePredictionsRes.data ?? []).map((p) => p.id);
+  const { data: liveStakes } =
+    livePredictionIds.length > 0
+      ? await supabase
+          .from('prediction_stakes')
+          .select('prediction_id, answer, stake')
+          .in('prediction_id', livePredictionIds)
+          .eq('user_id', user.id)
+          .is('room_id', null)
+      : { data: [] as { prediction_id: string; answer: string; stake: number }[] };
+
+  const livePredictionMeta = new Map((livePredictionsRes.data ?? []).map((p) => [p.id, { question: p.question, matchId: p.match_id }]));
+  const picksByMatch = new Map<string, MyPick[]>();
+  for (const s of liveStakes ?? []) {
+    const meta = livePredictionMeta.get(s.prediction_id);
+    if (!meta) continue;
+    picksByMatch.set(meta.matchId, [...(picksByMatch.get(meta.matchId) ?? []), { question: meta.question, answer: s.answer, stake: s.stake }]);
+  }
 
   const marketsByMatch = new Map<string, Market[]>();
   for (const p of predictionsRes.data ?? []) {
@@ -125,6 +167,7 @@ export default async function VirtualHubPage() {
     minute: m.minute ?? 0,
     status: 'live' as const,
     events: eventsByMatch.get(m.id) ?? [],
+    picks: picksByMatch.get(m.id) ?? [],
   }));
 
   const upcomingByKickoff = new Map<string, { id: string; home: ReturnType<typeof teamInfo>; away: ReturnType<typeof teamInfo>; markets: Market[] }[]>();
