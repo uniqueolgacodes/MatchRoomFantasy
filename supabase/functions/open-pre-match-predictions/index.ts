@@ -31,6 +31,7 @@ Deno.serve(async () => {
     .from('matches')
     .select('id, kickoff, home_team_id, away_team_id')
     .eq('status', 'scheduled')
+    .eq('is_virtual', false)
     .gte('kickoff', now.toISOString())
     .lte('kickoff', lookaheadEnd.toISOString());
 

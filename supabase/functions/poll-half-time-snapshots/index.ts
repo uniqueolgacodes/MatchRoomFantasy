@@ -30,6 +30,7 @@ Deno.serve(async () => {
     .from('matches')
     .select('id, external_id, kickoff, status')
     .lte('kickoff', new Date(Date.now() - 45 * 60 * 1000).toISOString())
+    .eq('is_virtual', false)
     .in('status', ['scheduled', 'live']);
 
   if (!due || due.length === 0) {

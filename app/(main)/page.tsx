@@ -44,6 +44,7 @@ export default async function HomePage() {
     supabase
       .from('matches')
       .select('id, home_team_id, away_team_id, kickoff, status, home_score, away_score, minute')
+      .eq('is_virtual', false)
       .in('status', ['scheduled', 'live', 'half_time'])
       .order('kickoff', { ascending: true })
       .limit(8),
@@ -110,6 +111,7 @@ export default async function HomePage() {
       <div className="mt-5 flex flex-wrap gap-2">
         <QuickNavPill href="/rooms" label="Your Rooms" />
         <QuickNavPill href="/rooms/discover" label="Discover" />
+        <QuickNavPill href="/virtual" label="⚡ Virtual" />
         <QuickNavPill href="/world" label="World Rankings" />
         <QuickNavPill href="/selections" label="My Selections" />
         {profile?.favourite_team_id && <QuickNavPill href={`/team/${profile.favourite_team_id}`} label="My Team" />}

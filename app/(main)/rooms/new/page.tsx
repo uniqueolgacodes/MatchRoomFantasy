@@ -41,6 +41,7 @@ export default async function NewRoomPage({ searchParams }: { searchParams: { ma
     .from('matches')
     .select('id, home_team_id, away_team_id, kickoff')
     .eq('status', 'scheduled')
+    .eq('is_virtual', false)
     .order('kickoff', { ascending: true })
     .limit(20);
 

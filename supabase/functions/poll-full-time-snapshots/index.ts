@@ -31,6 +31,7 @@ Deno.serve(async () => {
     .select('id, external_id, kickoff, status')
     .lte('kickoff', new Date(Date.now() - 90 * 60 * 1000).toISOString())
     .neq('status', 'full_time')
+    .eq('is_virtual', false)
     .in('status', ['scheduled', 'live', 'half_time']);
 
   if (!due || due.length === 0) {
