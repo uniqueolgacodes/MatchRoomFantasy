@@ -3,12 +3,13 @@
 // for the current user (via postgres_changes, RLS-scoped to their
 // own rows) and shows a celebratory popup for every win, real or
 // virtual, since both settle through the same settle_predictions_
-// batch function. This is the first real use of canvas-confetti,
-// which has sat unused in package.json since the original scaffold.
+// batch function.
 //
-// Shows the amount WON (+10 MP), not the resulting balance — the
-// balance already updates wherever it's displayed; this is
-// specifically "you just won this."
+// Centered modal treatment (was a small top-of-screen banner that
+// auto-dismissed after 6s) — now sized and positioned like a real
+// "you won" moment, and stays on screen until the person closes it
+// themselves (button or backdrop click), rather than potentially
+// vanishing before they've even read it.
 import { useEffect, useRef, useState } from 'react';
 import confetti from 'canvas-confetti';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -26,8 +27,6 @@ const CONGRATS_MESSAGES = [
   "You're on one today.",
 ];
 
-const DISPLAY_DURATION_MS = 6000;
-
 interface WinEvent {
   id: string;
   mpAmount: number;
@@ -38,7 +37,7 @@ export function WinPopup() {
   const { user } = useAuth();
   const [queue, setQueue] = useState<WinEvent[]>([]);
   const [current, setCurrent] = useState<WinEvent | null>(null);
-  const timeoutRef = useRef<ReturnType<typeof setTimeout>>();
+  const hasFiredConfettiRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (!user) return;
@@ -62,65 +61,85 @@ export function WinPopup() {
   }, [user]);
 
   // Advance the queue one at a time — settling several markets at
-  // once shouldn't stack multiple popups on top of each other.
+  // once shouldn't stack multiple popups on top of each other. The
+  // next one only appears once the person dismisses the current one
+  // (no more auto-timeout driving this).
   useEffect(() => {
     if (!current && queue.length > 0) {
       const [next, ...rest] = queue;
       setCurrent(next);
       setQueue(rest);
-      fireConfetti();
-      timeoutRef.current = setTimeout(() => setCurrent(null), DISPLAY_DURATION_MS);
+      if (hasFiredConfettiRef.current !== next.id) {
+        hasFiredConfettiRef.current = next.id;
+        fireConfetti();
+      }
     }
   }, [current, queue]);
 
-  useEffect(() => () => clearTimeout(timeoutRef.current), []);
-
   function dismiss() {
-    clearTimeout(timeoutRef.current);
     setCurrent(null);
   }
 
   return (
-    <div className="pointer-events-none fixed inset-x-0 top-4 z-[60] flex justify-center px-4">
-      <AnimatePresence>
-        {current && (
+    <AnimatePresence>
+      {current && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.2 }}
+          className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 px-4 backdrop-blur-sm"
+          onClick={dismiss}
+        >
           <motion.div
             key={current.id}
-            initial={{ opacity: 0, y: -24, scale: 0.9 }}
+            initial={{ opacity: 0, y: 24, scale: 0.9 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: -16, scale: 0.95 }}
-            transition={{ type: 'spring', stiffness: 300, damping: 20 }}
-            className="pointer-events-auto flex items-center gap-3 rounded-2xl border border-pitch/30 bg-ink-soft px-5 py-4 shadow-2xl shadow-black/50"
+            exit={{ opacity: 0, y: 16, scale: 0.95 }}
+            transition={{ type: 'spring', stiffness: 300, damping: 22 }}
+            onClick={(e) => e.stopPropagation()}
+            className="relative w-full max-w-sm rounded-3xl border border-pitch/30 bg-ink-soft px-8 py-10 text-center shadow-2xl shadow-black/60"
           >
+            <button
+              onClick={dismiss}
+              aria-label="Close"
+              className="absolute right-4 top-4 rounded-full p-1.5 text-white/40 transition-colors hover:bg-white/10 hover:text-white/80"
+            >
+              <svg width="18" height="18" viewBox="0 0 14 14" fill="none">
+                <path d="M1 1L13 13M13 1L1 13" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+              </svg>
+            </button>
+
             <motion.span
               initial={{ scale: 0, rotate: -20 }}
               animate={{ scale: 1, rotate: 0 }}
               transition={{ type: 'spring', stiffness: 400, damping: 12, delay: 0.1 }}
-              className="text-3xl"
+              className="inline-block text-7xl"
             >
               🏆
             </motion.span>
-            <div>
-              <p className="text-sm font-semibold text-white/80">{current.message}</p>
-              <p className="font-display text-lg font-bold text-pitch-light">+{current.mpAmount} MP</p>
-            </div>
-            <button onClick={dismiss} className="ml-2 shrink-0 text-white/30 transition-colors hover:text-white/60">
-              <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-                <path d="M1 1L13 13M13 1L1 13" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-              </svg>
+
+            <p className="mt-5 text-lg font-semibold text-white/80">{current.message}</p>
+            <p className="font-display mt-1 text-4xl font-bold text-pitch-light">+{current.mpAmount} MP</p>
+
+            <button
+              onClick={dismiss}
+              className="mt-7 w-full rounded-lg bg-pitch px-4 py-3 font-semibold transition-colors hover:bg-pitch-dark"
+            >
+              Nice!
             </button>
           </motion.div>
-        )}
-      </AnimatePresence>
-    </div>
+        </motion.div>
+      )}
+    </AnimatePresence>
   );
 }
 
 function fireConfetti() {
   confetti({
-    particleCount: 80,
-    spread: 70,
-    origin: { y: 0.15 },
+    particleCount: 120,
+    spread: 90,
+    origin: { y: 0.4 },
     colors: ['#16a34a', '#22c55e', '#eab308', '#f2f0e8'],
   });
 }

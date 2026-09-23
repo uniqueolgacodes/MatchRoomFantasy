@@ -1,0 +1,26 @@
+-- matches has no RLS at all (left open deliberately so real fixture
+-- data — team names, kickoff times — is freely readable). That's
+-- fine for real matches, but it means matches.virtual_script — the
+-- full scripted outcome of a virtual match, including its final
+-- score, written at spawn time, 3 hours before kickoff — has been
+-- sitting behind the same open anon/authenticated API key as
+-- everything else. Anyone who queries the table directly (not just
+-- the app's own UI, which never asks for this column) can currently
+-- read the answer before it happens.
+--
+-- Fix is column-level, not a table-wide RLS lockdown: Postgres can
+-- revoke SELECT on one specific column while leaving the rest of the
+-- table exactly as readable as it already is. No app code currently
+-- selects virtual_script (grep confirms it — only Edge Functions
+-- read it, via the service role, which this revoke doesn't touch),
+-- so this has no effect on anything that already works.
+--
+-- service_role bypasses table/column grants entirely (Supabase's
+-- design, same as it bypasses RLS), so spawn-virtual-matches and
+-- advance-virtual-matches are unaffected. The Dashboard SQL editor
+-- also runs as a privileged role, not anon/authenticated, so this
+-- migration doesn't take anything away from you as owner — it only
+-- removes read access for the anon/authenticated roles a regular
+-- client session uses.
+
+revoke select (virtual_script) on public.matches from anon, authenticated;

@@ -1,9 +1,25 @@
-// Opens pre-match predictions for upcoming fixtures. PRD §15.2.
+// Opens pre-match predictions for upcoming fixtures. PRD §15.2 ("pre-
+// match markets open when the fixture is published, lock at kickoff").
 //
-// This function didn't exist before this change — settle-predictions
-// could resolve prediction rows, but nothing anywhere created them,
-// so there was nothing for a user to actually predict on regardless
-// of how well the settlement pipeline worked.
+// Previously capped at LOOKAHEAD_DAYS = 14, matching poll-fixtures'
+// old fixed window — but poll-fixtures itself moved to an adaptive
+// lookahead (rolling forward past international breaks, up to 35
+// days) specifically because a fixed cap left it blind to the next
+// real matchday during a long gap. This had the exact same problem
+// one level up: even once poll-fixtures correctly reaches a distant
+// fixture, this function still wouldn't open markets for it until it
+// came within 14 days, silently contradicting "predictions open up
+// to 2 weeks out" as a promise — it was really "up to 2 weeks out,
+// unless the gap to the next matchday is longer, in which case
+// nothing."
+//
+// Fix: no day cap at all. A row only exists in `matches` because
+// poll-fixtures already confirmed it's a real, dated fixture — that
+// existing IS "the fixture being published," so there's no reason to
+// gate on top of it. A generous sanity bound (90 days) is kept only
+// to bound the query itself, not to meaningfully restrict behavior —
+// poll-fixtures' own 35-day cap means matches essentially never gets
+// fixtures further out than that anyway.
 //
 // Zero football-data.org calls — this only reads `matches` (already
 // populated by poll-fixtures) and writes `predictions`, so it costs
@@ -21,11 +37,11 @@
 
 import { supabase, Sentry } from '../_shared/clients.ts';
 
-const LOOKAHEAD_DAYS = 14; // matches poll-fixtures' own fixture window
+const SANITY_BOUND_DAYS = 90; // query bound only, not a meaningful behavioral cap — see comment above
 
 Deno.serve(async () => {
   const now = new Date();
-  const lookaheadEnd = new Date(now.getTime() + LOOKAHEAD_DAYS * 24 * 60 * 60 * 1000);
+  const sanityBound = new Date(now.getTime() + SANITY_BOUND_DAYS * 24 * 60 * 60 * 1000);
 
   const { data: upcoming, error: matchesError } = await supabase
     .from('matches')
@@ -33,7 +49,7 @@ Deno.serve(async () => {
     .eq('status', 'scheduled')
     .eq('is_virtual', false)
     .gte('kickoff', now.toISOString())
-    .lte('kickoff', lookaheadEnd.toISOString());
+    .lte('kickoff', sanityBound.toISOString());
 
   if (matchesError) {
     console.error('[open-pre-match-predictions] failed to fetch upcoming matches:', matchesError);

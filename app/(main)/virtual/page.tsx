@@ -6,17 +6,15 @@
 // doesn't need to be interactive" discipline the rest of the app
 // follows.
 //
-// Fix: a live match's pre-match predictions have already flipped
-// from `open` to `locked` by the time it's live (lock_expired_
-// predictions, same as real matches at kickoff) — the original
-// predictions fetch here filtered `.eq('status', 'open')`, which
-// correctly serves the upcoming-sets markets but also silently
-// dropped a live match's (now-locked) predictions from the result
-// entirely, so there was no way to look up what you'd staked on one.
-// That's now a separate query, scoped to liveMatchIds and with no
-// status filter — a live/locked/settled prediction still needs to be
-// found here, since the point is showing what you already predicted,
-// not what's still open to predict on.
+// Grace window: a match that just hit full_time used to vanish from
+// "Live now" the instant its status flipped and reappear down in
+// "Recent results" — jarring if you were mid-way through reading the
+// final score/ticker. It now stays in the live section, showing
+// "FULL TIME", for POST_MATCH_GRACE_MINUTES after the match actually
+// ended, then drops into Recent results as before. There's no
+// "finished_at" column to check directly, so this is derived from
+// kickoff + match duration + grace, all expressed as one lookback
+// window on kickoff — simpler than adding a column for it.
 import { createClient } from '@/lib/supabase/server';
 import { getCurrentBalance } from '@/lib/points/balance';
 import { VirtualHub } from '@/components/virtual/VirtualHub';
@@ -34,6 +32,10 @@ interface TeamRow {
   secondary_color: string | null;
 }
 
+const MATCH_DURATION_MINUTES = 10;
+const POST_MATCH_GRACE_MINUTES = 5;
+const LIVE_SECTION_WINDOW_MINUTES = MATCH_DURATION_MINUTES + POST_MATCH_GRACE_MINUTES;
+
 export default async function VirtualHubPage() {
   const supabase = createClient();
   const {
@@ -41,13 +43,19 @@ export default async function VirtualHubPage() {
   } = await supabase.auth.getUser();
   if (!user) return null; // middleware already redirects
 
+  const liveSectionCutoff = new Date(Date.now() - LIVE_SECTION_WINDOW_MINUTES * 60 * 1000).toISOString();
+
   const [teamsRes, liveRes, upcomingRes, recentRes, balance, profileRes] = await Promise.all([
     supabase.from('teams').select('id, name, short_name, primary_color, secondary_color').eq('is_virtual', true),
+    // "Live now" = genuinely live, OR finished within the last
+    // POST_MATCH_GRACE_MINUTES (still shown as "FULL TIME" here —
+    // LiveMatchCard already handles that status).
     supabase
       .from('matches')
       .select('id, home_team_id, away_team_id, home_score, away_score, minute, status')
       .eq('is_virtual', true)
-      .eq('status', 'live'),
+      .in('status', ['live', 'full_time'])
+      .gt('kickoff', liveSectionCutoff),
     supabase
       .from('matches')
       .select('id, home_team_id, away_team_id, kickoff')
@@ -56,11 +64,15 @@ export default async function VirtualHubPage() {
       .gt('kickoff', new Date().toISOString())
       .order('kickoff', { ascending: true })
       .limit(6),
+    // Recent results excludes anything still inside the live-section
+    // grace window, so a just-finished match doesn't show in both
+    // places at once.
     supabase
       .from('matches')
       .select('id, home_team_id, away_team_id, home_score, away_score, kickoff')
       .eq('is_virtual', true)
       .eq('status', 'full_time')
+      .lte('kickoff', liveSectionCutoff)
       .order('kickoff', { ascending: false })
       .limit(6),
     getCurrentBalance(supabase, user.id),
@@ -84,50 +96,48 @@ export default async function VirtualHubPage() {
     allActiveMatchIds.length > 0
       ? supabase
           .from('predictions')
-          .select('id, match_id, question, category, options, odds_multiplier, locks_at')
+          .select('id, match_id, question, category, options, odds_multiplier, locks_at, resolution_rule')
           .in('match_id', allActiveMatchIds)
           .eq('phase', 'pre_match')
           .eq('status', 'open')
           .order('created_at', { ascending: true })
       : Promise.resolve({ data: [] as any[] }),
-    // Deliberately no .eq('status', 'open') here — a live match's
-    // predictions are 'locked' by now, but we still need to find
-    // them to look up what was staked before kickoff.
+    // Deliberately no .eq('status', 'open') here — a live (or just-
+    // finished) match's predictions are 'locked'/'settled' by now,
+    // but we still need to find them to look up what was staked
+    // before kickoff.
     liveMatchIds.length > 0
       ? supabase.from('predictions').select('id, match_id, question').in('match_id', liveMatchIds)
       : Promise.resolve({ data: [] as { id: string; match_id: string; question: string }[] }),
   ]);
 
   const predictionIds = (predictionsRes.data ?? []).map((p) => p.id);
-  const { data: myStakes } =
+  const livePredictionIds = (livePredictionsRes.data ?? []).map((p) => p.id);
+
+  // These two are independent of each other (different prediction id
+  // sets) — previously two sequential `await`s, now one round-trip
+  // via Promise.all. Against a remote DB (which local dev always is,
+  // unless you're running `supabase start`), every avoidable
+  // sequential round-trip is real, compounding latency.
+  const [myStakesRes, liveStakesRes] = await Promise.all([
     predictionIds.length > 0
-      ? await supabase
-          .from('prediction_stakes')
-          .select('prediction_id, answer, stake')
-          .in('prediction_id', predictionIds)
-          .eq('user_id', user.id)
-          .is('room_id', null)
-      : { data: [] as { prediction_id: string; answer: string; stake: number }[] };
+      ? supabase.from('prediction_stakes').select('prediction_id, answer, stake').in('prediction_id', predictionIds).eq('user_id', user.id).is('room_id', null)
+      : Promise.resolve({ data: [] as { prediction_id: string; answer: string; stake: number }[] }),
+    livePredictionIds.length > 0
+      ? supabase.from('prediction_stakes').select('prediction_id, answer, stake').in('prediction_id', livePredictionIds).eq('user_id', user.id).is('room_id', null)
+      : Promise.resolve({ data: [] as { prediction_id: string; answer: string; stake: number }[] }),
+  ]);
+  const myStakes = myStakesRes.data;
+  const liveStakes = liveStakesRes.data;
 
   const initialStakes: Record<string, StakeInfo> = Object.fromEntries(
     (myStakes ?? []).map((s) => [s.prediction_id, { answer: s.answer, stake: s.stake }])
   );
 
-  // Picks already placed on live matches — same idea as
-  // initialStakes above, but keyed by match rather than prediction,
-  // since LiveMatchCard displays "what did I predict on THIS match"
-  // rather than a per-market staking widget.
-  const livePredictionIds = (livePredictionsRes.data ?? []).map((p) => p.id);
-  const { data: liveStakes } =
-    livePredictionIds.length > 0
-      ? await supabase
-          .from('prediction_stakes')
-          .select('prediction_id, answer, stake')
-          .in('prediction_id', livePredictionIds)
-          .eq('user_id', user.id)
-          .is('room_id', null)
-      : { data: [] as { prediction_id: string; answer: string; stake: number }[] };
-
+  // Picks already placed on live (or just-finished) matches — same
+  // idea as initialStakes above, but keyed by match rather than
+  // prediction, since LiveMatchCard displays "what did I predict on
+  // THIS match" rather than a per-market staking widget.
   const livePredictionMeta = new Map((livePredictionsRes.data ?? []).map((p) => [p.id, { question: p.question, matchId: p.match_id }]));
   const picksByMatch = new Map<string, MyPick[]>();
   for (const s of liveStakes ?? []) {
@@ -145,6 +155,8 @@ export default async function VirtualHubPage() {
       options: Array.isArray(p.options) ? p.options : [],
       odds_multiplier: Number(p.odds_multiplier),
       locks_at: p.locks_at,
+      scoreOddsTable: p.resolution_rule?.odds_table,
+      otherScoreOdds: p.resolution_rule?.other_odds ? Number(p.resolution_rule.other_odds) : undefined,
     };
     marketsByMatch.set(p.match_id, [...(marketsByMatch.get(p.match_id) ?? []), market]);
   }
@@ -165,7 +177,9 @@ export default async function VirtualHubPage() {
     homeScore: m.home_score ?? 0,
     awayScore: m.away_score ?? 0,
     minute: m.minute ?? 0,
-    status: 'live' as const,
+    // Was hardcoded to 'live' — a match in its grace window has
+    // status 'full_time' and needs to actually say so.
+    status: (m.status === 'full_time' ? 'full_time' : 'live') as 'live' | 'full_time',
     events: eventsByMatch.get(m.id) ?? [],
     picks: picksByMatch.get(m.id) ?? [],
   }));

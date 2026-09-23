@@ -2,30 +2,23 @@
 // Runs every minute. Zero external API calls — reads/writes only
 // matches, match_events, and match_snapshots.
 //
-// At minute 15, writing the full_time match_snapshots row fires the
-// existing on_full_time_snapshot trigger — settlement (settle-
-// predictions, settle-room-match, score-gameweek) then runs exactly
-// as it does for a real match, via code that already exists and
-// hasn't needed a single change for this to work.
+// At the end of the match, writing the full_time match_snapshots row
+// fires the existing on_full_time_snapshot trigger — settlement
+// (settle-predictions, settle-room-match, score-gameweek) then runs
+// exactly as it does for a real match, via code that already exists
+// and hasn't needed a single change for this to work.
 //
-// Bug fixed here: home_score/away_score on `matches` were only ever
-// written in the full-time branch at the bottom, never during the
-// live minutes. match_events rows were still inserted live (which is
-// why LiveMatchCard's event ticker updated correctly — it listens
-// for match_events INSERTs directly), but nothing was pushing an
-// UPDATE to `matches` with the new score in between, so the
-// scoreline itself sat frozen at 0-0 until the match actually ended.
-// Fix: tally goal-type match_events for this match on every tick
-// (not just the final one) and write that tally to `matches` every
-// time — the exact same "count actual goal events, one source of
-// truth" approach the full-time branch already used, just now run
-// continuously instead of once at the end. LiveMatchCard already
-// listens for `matches` UPDATEs and was always ready for this; it
-// just never received one mid-match.
+// MATCH_DURATION_SECONDS is 10 minutes now, not 15 — matches the
+// cadence change in spawn-virtual-matches (6 matches/hour instead of
+// 2). The tick offsets baked into each match's virtual_script were
+// generated at spawn time already scaled to whatever duration was
+// live then, so this only needs the duration constant itself to
+// know when a match has actually finished.
 
 import { supabase, Sentry } from '../_shared/clients.ts';
 
-const MATCH_DURATION_SECONDS = 15 * 60;
+const MATCH_DURATION_SECONDS = 10 * 60;
+const MATCH_DURATION_MINUTES = MATCH_DURATION_SECONDS / 60;
 
 interface ScriptTick {
   tick: number;
@@ -74,7 +67,7 @@ Deno.serve(async () => {
         const { error: insertError } = await supabase.from('match_events').insert({
           match_id: match.id,
           type: t.type,
-          minute: Math.min(15, Math.floor(t.offset_seconds / 60)),
+          minute: Math.min(MATCH_DURATION_MINUTES, Math.floor(t.offset_seconds / 60)),
           team_id: teamId,
           external_event_id: `virtual:${match.id}:${t.tick}`,
         });
@@ -102,7 +95,7 @@ Deno.serve(async () => {
       const homeScore = (goalEvents ?? []).filter((e) => e.team_id === match.home_team_id).length;
       const awayScore = (goalEvents ?? []).filter((e) => e.team_id === match.away_team_id).length;
 
-      const minuteDisplay = Math.min(15, Math.floor(elapsedSeconds / 60));
+      const minuteDisplay = Math.min(MATCH_DURATION_MINUTES, Math.floor(elapsedSeconds / 60));
       await supabase.from('matches').update({ minute: minuteDisplay, home_score: homeScore, away_score: awayScore }).eq('id', match.id);
       if (dueTicks.length > 0) advanced++;
 
@@ -116,7 +109,7 @@ Deno.serve(async () => {
 
         if (!snapshotError) {
           await supabase.from('matches')
-            .update({ status: 'full_time', home_score: homeScore, away_score: awayScore, minute: 15 })
+            .update({ status: 'full_time', home_score: homeScore, away_score: awayScore, minute: MATCH_DURATION_MINUTES })
             .eq('id', match.id);
           settled++;
         } else if (snapshotError.code !== '23505') {

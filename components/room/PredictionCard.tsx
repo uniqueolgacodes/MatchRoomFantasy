@@ -1,9 +1,23 @@
 'use client';
 // PRD §15 — a single pre-match market. Fixed-option markets (winner,
-// BTTS, over/under, clean sheets) render as pick buttons;
-// correct_score has no fixed options (open-pre-match-predictions
-// creates it with `options: []` on purpose — it's a free-text "N-N"
-// guess) so it renders two number inputs instead.
+// BTTS, over/under, clean sheets) render as pick buttons, each now
+// showing its OWN odds rather than one badge for the whole market;
+// correct_score has no fixed options (open-pre-match-predictions /
+// spawn-virtual-matches both create it with `options: []` on
+// purpose — it's a free-text "N-N" guess) so it renders two number
+// inputs, with a live price for whatever score is currently entered.
+//
+// options normalization: real matches (open-pre-match-predictions)
+// still produce plain strings, e.g. ['home','away','draw'], with one
+// flat odds_multiplier for the whole market — that's the original,
+// simpler format. Virtual matches (spawn-virtual-matches) produce
+// richer objects, e.g. [{key:'home', label:'Home Win', odds:2.1}],
+// with real per-option pricing. normalizeOptions() below accepts
+// either shape and always returns the richer one — a plain string
+// just becomes {key: str, label: capitalized str, odds: the market's
+// flat odds_multiplier} — so this component only ever has one shape
+// to render, and a real match's card looks and behaves exactly as it
+// did before any of this existed.
 import { useState } from 'react';
 import { POINTS } from '@/lib/points/constants';
 
@@ -11,14 +25,37 @@ export interface Market {
   id: string;
   question: string;
   category: string;
-  options: string[];
+  options: Array<string | { key: string; label?: string; odds?: number }>;
   odds_multiplier: number;
   locks_at: string;
+  /** correct_score only — per-scoreline prices, e.g. {"1-0": 6.4, "2-1": 9.8, ...}. Undefined for real matches (flat pricing only). */
+  scoreOddsTable?: Record<string, number>;
+  /** correct_score only — price for any scoreline outside scoreOddsTable. */
+  otherScoreOdds?: number;
 }
 
 export interface StakeInfo {
   answer: string;
   stake: number;
+}
+
+interface NormalizedOption {
+  key: string;
+  label: string;
+  odds: number;
+}
+
+function normalizeOptions(market: Market): NormalizedOption[] {
+  return market.options.map((o) => {
+    if (typeof o === 'string') {
+      return { key: o, label: capitalize(o), odds: market.odds_multiplier };
+    }
+    return { key: o.key, label: o.label ?? capitalize(o.key), odds: o.odds ?? market.odds_multiplier };
+  });
+}
+
+function capitalize(s: string): string {
+  return s.charAt(0).toUpperCase() + s.slice(1);
 }
 
 interface PredictionCardProps {
@@ -30,6 +67,8 @@ interface PredictionCardProps {
 
 export function PredictionCard({ market, roomId, existingStake, onPlaced }: PredictionCardProps) {
   const isCorrectScore = market.category === 'correct_score';
+  const options = normalizeOptions(market);
+
   const [selected, setSelected] = useState('');
   const [homeGoals, setHomeGoals] = useState('');
   const [awayGoals, setAwayGoals] = useState('');
@@ -37,7 +76,11 @@ export function PredictionCard({ market, roomId, existingStake, onPlaced }: Pred
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const answer = isCorrectScore ? (homeGoals !== '' && awayGoals !== '' ? `${homeGoals}-${awayGoals}` : '') : selected;
+  const scoreKey = homeGoals !== '' && awayGoals !== '' ? `${homeGoals}-${awayGoals}` : null;
+  const liveScoreOdds = scoreKey ? market.scoreOddsTable?.[scoreKey] ?? market.otherScoreOdds ?? market.odds_multiplier : null;
+
+  const answer = isCorrectScore ? (scoreKey ?? '') : selected;
+  const selectedOdds = isCorrectScore ? liveScoreOdds : options.find((o) => o.key === selected)?.odds ?? null;
   const locked = new Date(market.locks_at) <= new Date();
 
   async function submit() {
@@ -85,10 +128,7 @@ export function PredictionCard({ market, roomId, existingStake, onPlaced }: Pred
 
   return (
     <div className="rounded-lg bg-ink-soft px-4 py-3.5">
-      <div className="flex items-center justify-between gap-3">
-        <p className="text-sm font-semibold">{market.question}</p>
-        <span className="shrink-0 text-xs font-medium text-white/40">{market.odds_multiplier}x</span>
-      </div>
+      <p className="text-sm font-semibold">{market.question}</p>
 
       <div className="mt-3">
         {isCorrectScore ? (
@@ -112,18 +152,22 @@ export function PredictionCard({ market, roomId, existingStake, onPlaced }: Pred
               placeholder="0"
               className="w-16 rounded-md bg-white/10 px-2 py-1.5 text-center text-sm outline-none focus:ring-2 focus:ring-pitch"
             />
+            {liveScoreOdds && (
+              <span className="ml-1 rounded-md bg-pitch/15 px-2 py-1 text-xs font-semibold text-pitch-light">{liveScoreOdds}x</span>
+            )}
           </div>
         ) : (
           <div className="flex flex-wrap gap-1.5">
-            {market.options.map((opt) => (
+            {options.map((opt) => (
               <button
-                key={opt}
-                onClick={() => setSelected(opt)}
-                className={`rounded-full px-3 py-1.5 text-xs font-semibold capitalize transition-colors ${
-                  selected === opt ? 'bg-pitch text-white' : 'bg-white/10 text-white/70 hover:bg-white/20'
+                key={opt.key}
+                onClick={() => setSelected(opt.key)}
+                className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold capitalize transition-colors ${
+                  selected === opt.key ? 'bg-pitch text-white' : 'bg-white/10 text-white/70 hover:bg-white/20'
                 }`}
               >
-                {opt}
+                {opt.label}
+                <span className={selected === opt.key ? 'text-white/80' : 'text-white/40'}>{opt.odds}x</span>
               </button>
             ))}
           </div>
@@ -142,6 +186,9 @@ export function PredictionCard({ market, roomId, existingStake, onPlaced }: Pred
           className="w-16 rounded-md bg-white/10 px-2 py-1.5 text-center text-sm outline-none focus:ring-2 focus:ring-pitch"
         />
         <span className="text-xs text-white/40">MP</span>
+        {selectedOdds && stakeAmount > 0 && (
+          <span className="text-xs text-white/30">→ {Math.floor(stakeAmount * selectedOdds)} MP if right</span>
+        )}
         <button
           onClick={submit}
           disabled={!answer || submitting}

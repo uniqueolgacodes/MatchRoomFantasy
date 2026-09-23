@@ -73,7 +73,7 @@ export default async function RoomPage({ params }: { params: { id: string } }) {
     matches.map(async (match) => {
       const { data: predictions } = await supabase
         .from('predictions')
-        .select('id, question, category, options, odds_multiplier, locks_at')
+        .select('id, question, category, options, odds_multiplier, locks_at, resolution_rule')
         .eq('match_id', match.id)
         .eq('phase', 'pre_match')
         .eq('status', 'open')
@@ -86,6 +86,8 @@ export default async function RoomPage({ params }: { params: { id: string } }) {
         options: Array.isArray(p.options) ? p.options : [],
         odds_multiplier: Number(p.odds_multiplier),
         locks_at: p.locks_at,
+        scoreOddsTable: p.resolution_rule?.odds_table,
+        otherScoreOdds: p.resolution_rule?.other_odds ? Number(p.resolution_rule.other_odds) : undefined,
       }));
 
       let initialStakes: Record<string, StakeInfo> = {};

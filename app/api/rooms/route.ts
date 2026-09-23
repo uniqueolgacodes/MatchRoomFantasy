@@ -1,12 +1,15 @@
-// PRD §10.1 — create a Public or Private Match Room ahead of a
-// fixture. All validation and the room + room_matches link happen in
-// ONE transaction inside create_room() (migration 0013). This route
+// PRD §10.1 — create a Public or Private Match Room ahead of one
+// match, OR a whole day's slate of matches at once (matchIds can be
+// length 1 or more — room_matches was always a many-to-many join,
+// see migration 0025). All validation and the room + room_matches
+// links happen in ONE transaction inside create_room(). This route
 // only authenticates, sanity-checks the payload, and maps errors.
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { rpcErrorResponse } from '@/lib/api/rpc-errors';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const MAX_MATCHES_PER_ROOM = 20;
 
 export async function POST(req: NextRequest) {
   let body: unknown;
@@ -16,10 +19,10 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Invalid request body.' }, { status: 400 });
   }
 
-  const { name, roomType, matchId, description } = (body ?? {}) as {
+  const { name, roomType, matchIds, description } = (body ?? {}) as {
     name?: unknown;
     roomType?: unknown;
-    matchId?: unknown;
+    matchIds?: unknown;
     description?: unknown;
   };
 
@@ -29,8 +32,11 @@ export async function POST(req: NextRequest) {
   if (roomType !== 'match_public' && roomType !== 'private') {
     return NextResponse.json({ error: 'Invalid room type.' }, { status: 400 });
   }
-  if (typeof matchId !== 'string' || !UUID.test(matchId)) {
-    return NextResponse.json({ error: 'Invalid match.' }, { status: 400 });
+  if (!Array.isArray(matchIds) || matchIds.length === 0 || matchIds.length > MAX_MATCHES_PER_ROOM) {
+    return NextResponse.json({ error: 'Pick at least one match.' }, { status: 400 });
+  }
+  if (!matchIds.every((id) => typeof id === 'string' && UUID.test(id))) {
+    return NextResponse.json({ error: 'Invalid match selection.' }, { status: 400 });
   }
   if (description != null && (typeof description !== 'string' || description.length > 300)) {
     return NextResponse.json({ error: 'Description is too long.' }, { status: 400 });
@@ -45,12 +51,12 @@ export async function POST(req: NextRequest) {
   const { data, error } = await supabase.rpc('create_room', {
     p_name: name,
     p_room_type: roomType,
-    p_match_id: matchId,
+    p_match_ids: matchIds,
     p_description: description ?? null,
   });
 
   if (error) return rpcErrorResponse(error);
 
-  // data = { id, slug, room_code, name, room_type }
+  // data = { id, slug, room_code, name, room_type, match_count }
   return NextResponse.json({ room: data });
 }

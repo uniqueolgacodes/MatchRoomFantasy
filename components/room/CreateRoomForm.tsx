@@ -1,6 +1,8 @@
 'use client';
 // PRD §10.1 — creates a Public or Private Match Room via POST
-// /api/rooms (create_room() RPC, migration 0013).
+// /api/rooms (create_room() RPC, migration 0025 — now takes an array
+// of match ids, so this form can offer "this match only" or "every
+// match kicking off today").
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 
@@ -13,17 +15,23 @@ interface CreateRoomFormProps {
   matches: MatchOption[];
   preselectedMatchId?: string;
   preselectedLabel?: string;
+  /** Every real match sharing the preselected match's calendar day, preselected match included. Length > 1 is what triggers the scope toggle. */
+  dayMatchIds?: string[];
+  dayLabel?: string;
 }
 
-export function CreateRoomForm({ matches, preselectedMatchId, preselectedLabel }: CreateRoomFormProps) {
+export function CreateRoomForm({ matches, preselectedMatchId, preselectedLabel, dayMatchIds, dayLabel }: CreateRoomFormProps) {
   const router = useRouter();
   const [name, setName] = useState('');
   const [visibility, setVisibility] = useState<'public' | 'private'>('public');
   const [matchId, setMatchId] = useState(preselectedMatchId ?? matches[0]?.id ?? '');
+  const hasWholeDayOption = !!dayMatchIds && dayMatchIds.length > 1;
+  const [scope, setScope] = useState<'single' | 'day'>('single');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const canSubmit = name.trim().length >= 3 && matchId && !submitting;
+  const selectedMatchIds = scope === 'day' && dayMatchIds ? dayMatchIds : [matchId];
+  const canSubmit = name.trim().length >= 3 && selectedMatchIds.length > 0 && !!selectedMatchIds[0] && !submitting;
 
   async function handleSubmit() {
     if (!canSubmit) return;
@@ -36,7 +44,7 @@ export function CreateRoomForm({ matches, preselectedMatchId, preselectedLabel }
         body: JSON.stringify({
           name: name.trim(),
           roomType: visibility === 'public' ? 'match_public' : 'private',
-          matchId,
+          matchIds: selectedMatchIds,
         }),
       });
       const data = await res.json();
@@ -68,8 +76,31 @@ export function CreateRoomForm({ matches, preselectedMatchId, preselectedLabel }
 
       {preselectedMatchId ? (
         <div className="mt-4">
-          <label className="text-xs font-medium text-white/50">Match</label>
-          <p className="mt-1.5 rounded-lg bg-ink-soft px-4 py-3 text-sm text-white/80">{preselectedLabel}</p>
+          <label className="text-xs font-medium text-white/50">Coverage</label>
+          {hasWholeDayOption ? (
+            <div className="mt-1.5 flex gap-2">
+              <button
+                onClick={() => setScope('single')}
+                className={`flex-1 rounded-lg px-4 py-3 text-left text-sm transition-colors ${
+                  scope === 'single' ? 'bg-pitch text-white' : 'bg-ink-soft text-white/60 hover:bg-white/[0.07]'
+                }`}
+              >
+                <span className="block font-semibold">This match only</span>
+                <span className="block text-xs opacity-70">{preselectedLabel}</span>
+              </button>
+              <button
+                onClick={() => setScope('day')}
+                className={`flex-1 rounded-lg px-4 py-3 text-left text-sm transition-colors ${
+                  scope === 'day' ? 'bg-pitch text-white' : 'bg-ink-soft text-white/60 hover:bg-white/[0.07]'
+                }`}
+              >
+                <span className="block font-semibold">All of {dayLabel}</span>
+                <span className="block text-xs opacity-70">{dayMatchIds!.length} matches</span>
+              </button>
+            </div>
+          ) : (
+            <p className="mt-1.5 rounded-lg bg-ink-soft px-4 py-3 text-sm text-white/80">{preselectedLabel}</p>
+          )}
         </div>
       ) : matches.length > 0 ? (
         <div className="mt-4">
