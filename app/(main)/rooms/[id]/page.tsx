@@ -53,9 +53,14 @@ export default async function RoomPage({ params }: { params: { id: string } }) {
     );
   }
 
-  const [{ data: linkedMatches }, balance] = await Promise.all([
+  const [{ data: linkedMatches }, balance, { data: leaderboard }] = await Promise.all([
     supabase.from('room_matches').select('matches(id, home_team_id, away_team_id, kickoff, status, home_score, away_score)').eq('room_id', room.id),
     getCurrentBalance(supabase, user.id),
+    supabase
+      .from('room_leaderboard')
+      .select('user_id, username, display_name, avatar_url, total_points, matches_played, rank')
+      .eq('room_id', room.id)
+      .order('rank', { ascending: true }),
   ]);
 
   const matches = (linkedMatches ?? [])
@@ -133,6 +138,39 @@ export default async function RoomPage({ params }: { params: { id: string } }) {
           No match linked to this room yet.
         </p>
       )}
+
+      <section className="mt-8">
+        <h2 className="font-display text-sm font-bold uppercase tracking-wide text-white/40">Leaderboard</h2>
+        {leaderboard && leaderboard.length > 0 ? (
+          <div className="mt-3 flex flex-col gap-1">
+            {leaderboard.map((row) => {
+              const isMe = row.user_id === user.id;
+              return (
+                <div
+                  key={row.user_id}
+                  className={`flex items-center gap-3 rounded-lg px-3.5 py-2.5 ${
+                    isMe ? 'bg-pitch/15 ring-1 ring-pitch/40' : 'bg-ink-soft'
+                  }`}
+                >
+                  <span className="w-6 shrink-0 text-right text-sm font-semibold tabular-nums text-white/40">
+                    {row.rank}
+                  </span>
+                  <span className="min-w-0 flex-1 truncate text-sm font-medium">
+                    {row.display_name ?? row.username}
+                    {isMe && <span className="ml-1.5 text-xs font-normal text-pitch-light">(you)</span>}
+                  </span>
+                  <span className="shrink-0 text-xs text-white/40">{row.matches_played} played</span>
+                  <span className="shrink-0 text-sm font-bold tabular-nums text-pitch-light">{row.total_points} pts</span>
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          <p className="mt-3 rounded-lg border border-dashed border-white/10 px-4 py-6 text-center text-sm text-white/40">
+            No settled predictions yet — the leaderboard fills in as matches finish.
+          </p>
+        )}
+      </section>
     </main>
   );
 }

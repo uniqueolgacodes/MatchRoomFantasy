@@ -34,6 +34,11 @@ const SLIDES: Slide[] = [
     body: 'Pre-match markets lock at kickoff. A fresh set of half-time markets opens at HT and locks 15 minutes later.',
   },
   {
+    emoji: '⚡',
+    title: 'No fixtures today? No problem',
+    body: "Virtual Matches run round the clock — ten-minute games between our own fictional clubs, settled in minutes. Same Match Points, zero waiting for Saturday.",
+  },
+  {
     emoji: '🏅',
     title: 'Climb the table',
     body: "Win your room, win the season, or top the World Rankings. Every win earns a trophy you can show off.",

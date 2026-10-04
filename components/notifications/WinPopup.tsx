@@ -1,15 +1,22 @@
 'use client';
-// Mounted once in (main)/layout.tsx — listens on win_notifications
-// for the current user (via postgres_changes, RLS-scoped to their
-// own rows) and shows a celebratory popup for every win, real or
-// virtual, since both settle through the same settle_predictions_
-// batch function.
+// Mounted once in (main)/layout.tsx — shows a celebratory popup for
+// every win, real or virtual, since both settle through the same
+// settle_predictions_batch function.
 //
-// Centered modal treatment (was a small top-of-screen banner that
-// auto-dismissed after 6s) — now sized and positioned like a real
-// "you won" moment, and stays on screen until the person closes it
-// themselves (button or backdrop click), rather than potentially
-// vanishing before they've even read it.
+// Two sources feed the queue:
+//  1. A catch-up fetch on mount/login for any win_notifications with
+//     seen_at still null — this is what makes a win settled while
+//     offline still show up once the person's back. Without this,
+//     only a live postgres_changes INSERT (received while actually
+//     connected) ever triggered the popup, so anything that happened
+//     while offline silently never got surfaced even after reconnecting.
+//  2. The existing live Realtime listener, for the "currently
+//     online" case, so it still feels instant while browsing.
+// Either way, a notification is marked seen_at the moment it starts
+// being DISPLAYED (not on dismiss) — manual-close means someone
+// could leave it on screen a while without closing it, and "seen"
+// should track what they were actually shown, not when they clicked
+// away.
 import { useEffect, useRef, useState } from 'react';
 import confetti from 'canvas-confetti';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -33,12 +40,34 @@ interface WinEvent {
   message: string;
 }
 
+function randomMessage() {
+  return CONGRATS_MESSAGES[Math.floor(Math.random() * CONGRATS_MESSAGES.length)];
+}
+
 export function WinPopup() {
   const { user } = useAuth();
   const [queue, setQueue] = useState<WinEvent[]>([]);
   const [current, setCurrent] = useState<WinEvent | null>(null);
   const hasFiredConfettiRef = useRef<string | null>(null);
 
+  // Catch-up: anything that settled while this person wasn't
+  // connected. Runs once per login (user id becoming available).
+  useEffect(() => {
+    if (!user) return;
+    const supabase = createClient();
+    supabase
+      .from('win_notifications')
+      .select('id, mp_amount')
+      .eq('user_id', user.id)
+      .is('seen_at', null)
+      .order('created_at', { ascending: true })
+      .then(({ data }) => {
+        if (!data || data.length === 0) return;
+        setQueue((prev) => [...data.map((row) => ({ id: row.id, mpAmount: row.mp_amount, message: randomMessage() })), ...prev]);
+      });
+  }, [user]);
+
+  // Live: anything that settles while connected, shown immediately.
   useEffect(() => {
     if (!user) return;
     const supabase = createClient();
@@ -49,8 +78,7 @@ export function WinPopup() {
         { event: 'INSERT', schema: 'public', table: 'win_notifications', filter: `user_id=eq.${user.id}` },
         (payload) => {
           const row = payload.new as { id: string; mp_amount: number };
-          const message = CONGRATS_MESSAGES[Math.floor(Math.random() * CONGRATS_MESSAGES.length)];
-          setQueue((prev) => [...prev, { id: row.id, mpAmount: row.mp_amount, message }]);
+          setQueue((prev) => [...prev, { id: row.id, mpAmount: row.mp_amount, message: randomMessage() }]);
         }
       )
       .subscribe();
@@ -63,7 +91,7 @@ export function WinPopup() {
   // Advance the queue one at a time — settling several markets at
   // once shouldn't stack multiple popups on top of each other. The
   // next one only appears once the person dismisses the current one
-  // (no more auto-timeout driving this).
+  // (no auto-timeout).
   useEffect(() => {
     if (!current && queue.length > 0) {
       const [next, ...rest] = queue;
@@ -73,6 +101,10 @@ export function WinPopup() {
         hasFiredConfettiRef.current = next.id;
         fireConfetti();
       }
+      // Mark seen the moment it's actually shown — fire-and-forget,
+      // doesn't block the UI either way.
+      const supabase = createClient();
+      supabase.from('win_notifications').update({ seen_at: new Date().toISOString() }).eq('id', next.id).then();
     }
   }, [current, queue]);
 

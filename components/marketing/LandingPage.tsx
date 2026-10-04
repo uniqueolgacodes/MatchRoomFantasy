@@ -4,10 +4,13 @@
 // any other route since this is the page every new visitor loads
 // cold, often over a slow connection.
 //
-// Every section is grounded in a real, specific mechanic this
-// product actually has (the half-time/full-time checkpoint model,
-// WhatsApp room codes, the no-cash MP system) rather than generic
-// SaaS trust badges or stock illustrations.
+// Rewritten: the original version was built entirely around "your
+// WhatsApp group" as the headline identity, with zero mention of
+// Virtual Matches, World Rankings, or Team Hub — all genuinely
+// substantial parts of the product by now. Every section is still
+// grounded in a real, specific mechanic (the checkpoint model,
+// share-anywhere room links, the always-on virtual match engine, the
+// no-cash MP system) rather than generic SaaS trust badges.
 
 export function LandingPage() {
   return (
@@ -22,7 +25,9 @@ export function LandingPage() {
 
       <Hero />
       <HowItWorks />
-      <GroupChatNative />
+      <VirtualMatches />
+      <ShareAnywhere />
+      <CompeteEverywhere />
       <NoCash />
       <FinalCTA />
     </div>
@@ -34,11 +39,11 @@ function Hero() {
     <section className="mx-auto grid max-w-6xl grid-cols-1 items-center gap-16 px-6 pb-20 pt-16 lg:grid-cols-2 lg:pt-24">
       <div className="animate-rise-in">
         <h1 className="font-display text-4xl font-bold leading-[1.1] text-chalk sm:text-5xl">
-          Where your WhatsApp group predicts the Prem
+          Football predictions that never go quiet
         </h1>
         <p className="mt-5 max-w-md text-lg text-white/60">
-          Join a room, call the score before kickoff, and settle the argument with Match
-          Points — not naira.
+          Join a room for the real Premier League, or jump into a Virtual match kicking off
+          right now. Pick winners, scores, cards — settle it with Match Points, not naira.
         </p>
         <div className="mt-8 flex flex-wrap items-center gap-4">
           <a
@@ -66,8 +71,9 @@ function Hero() {
 
 // The hero's proof-of-product: a mock of an actual Room mid-match,
 // showing the half-time checkpoint mechanic specifically — this is
-// the one thing genuinely unique to how this app works, so it's what
-// earns the hero's visual real estate rather than an abstract shape.
+// the one thing genuinely unique to how real-match rooms work, so
+// it's what earns the hero's visual real estate rather than an
+// abstract shape. Virtual Matches get their own proof point below.
 function RoomCardMock() {
   return (
     <div className="animate-rise-in [animation-delay:150ms]">
@@ -120,7 +126,7 @@ function HowItWorks() {
     {
       n: '1',
       title: 'Join a room',
-      body: 'Tap a WhatsApp link or type a 6-character code. No app store, no signup form standing between you and kickoff.',
+      body: 'Tap a share link or type a 6-character code. No app store, no signup form standing between you and kickoff.',
     },
     {
       n: '2',
@@ -150,19 +156,95 @@ function HowItWorks() {
   );
 }
 
-function GroupChatNative() {
+// New section. Virtual Matches are genuinely the most differentiated
+// thing this product does by now — nothing else runs round-the-clock
+// predictable football — and the original landing page never
+// mentioned them at all.
+function VirtualMatches() {
+  return (
+    <section className="border-t border-white/10">
+      <div className="mx-auto grid max-w-6xl grid-cols-1 items-center gap-12 px-6 py-20 lg:grid-cols-2">
+        <div>
+          <span className="text-xs font-semibold uppercase tracking-wide text-floodlight">Virtual Matches</span>
+          <h2 className="font-display mt-2 text-3xl font-bold text-chalk">No fixtures today? Doesn't matter.</h2>
+          <p className="mt-4 max-w-md text-[15px] leading-relaxed text-white/55">
+            Ten-minute matches between our own fictional clubs, a fresh kickoff every few
+            minutes, round the clock. Same Match Points, same bragging rights — settled before
+            you've finished your tea, with nothing to wait for.
+          </p>
+        </div>
+
+        <VirtualMatchMock />
+      </div>
+    </section>
+  );
+}
+
+// Grounded in the real /virtual UI — team badges built from each
+// club's own colors (no crest image needed, since these clubs are
+// fictional), a live minute count, and a couple of ticker events —
+// the same proof-not-decoration treatment as the real-match Room
+// card above.
+function VirtualMatchMock() {
+  return (
+    <div className="rounded-2xl border border-white/10 bg-ink-soft p-6 shadow-2xl shadow-black/40">
+      <div className="flex items-center justify-between border-b border-white/10 pb-4">
+        <span className="flex items-center gap-1.5 text-xs font-semibold text-floodlight">
+          <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-floodlight" />
+          LIVE — 7'
+        </span>
+        <span className="text-xs text-white/30">Virtual match</span>
+      </div>
+
+      <div className="flex items-center justify-center gap-6 py-6">
+        <VirtualTeam shortName="IRO" color="#4b5563" />
+        <span className="font-display text-2xl font-bold text-chalk">1 – 0</span>
+        <VirtualTeam shortName="SOL" color="#f59e0b" />
+      </div>
+
+      <div className="space-y-1.5 border-t border-white/10 pt-4">
+        <TickerRow emoji="⚽" label="GOAL!" minute={4} team="IRO" highlight />
+        <TickerRow emoji="🟨" label="Yellow card" minute={6} team="SOL" />
+      </div>
+    </div>
+  );
+}
+
+function VirtualTeam({ shortName, color }: { shortName: string; color: string }) {
+  return (
+    <span
+      className="flex h-10 w-10 items-center justify-center rounded-full border border-white/10 text-xs font-bold text-white"
+      style={{ backgroundColor: color }}
+    >
+      {shortName}
+    </span>
+  );
+}
+
+function TickerRow({ emoji, label, minute, team, highlight }: { emoji: string; label: string; minute: number; team: string; highlight?: boolean }) {
+  return (
+    <div className={`flex items-center gap-2 rounded-lg px-3 py-2 text-sm ${highlight ? 'bg-pitch/10 font-semibold text-pitch-light' : 'bg-white/[0.03] text-white/70'}`}>
+      <span className="text-base leading-none">{emoji}</span>
+      <span className="w-6 shrink-0 tabular-nums text-white/40">{minute}'</span>
+      <span className="flex-1">{label}</span>
+      <span className="shrink-0 text-xs text-white/40">{team}</span>
+    </div>
+  );
+}
+
+function ShareAnywhere() {
   return (
     <section className="border-t border-white/10">
       <div className="mx-auto grid max-w-6xl grid-cols-1 items-center gap-12 px-6 py-20 lg:grid-cols-2">
         <ChatMock />
         <div>
           <h2 className="font-display text-3xl font-bold text-chalk">
-            Built for the group chat, not the app store
+            One link, shared wherever you want
           </h2>
           <p className="mt-4 max-w-md text-[15px] leading-relaxed text-white/55">
-            There's nothing to download and no account to create before you can join. Someone
-            drops a room link in the group, you tap it, and you're picking scores before your
-            friend finishes typing their reply.
+            There's nothing to download and no account to approve before someone can join. Drop
+            the link in WhatsApp, post it on Twitter, text it, paste it in Discord — wherever
+            your people actually are, that's where the room lives too.
           </p>
         </div>
       </div>
@@ -170,9 +252,9 @@ function GroupChatNative() {
   );
 }
 
-// A restrained chat-bubble mock — grounds the "no app needed"
-// section in the actual distribution mechanic (a shared WhatsApp
-// link) rather than an abstract phone illustration.
+// A restrained chat-bubble mock — illustrates the share-a-link
+// mechanic concretely with one example thread, not a claim that this
+// only works in one specific app.
 function ChatMock() {
   return (
     <div className="rounded-2xl border border-white/10 bg-ink-soft p-5">
@@ -199,6 +281,35 @@ function Bubble({ from, mine, children }: { from: string; mine?: boolean; childr
         {children}
       </span>
     </div>
+  );
+}
+
+// New, lighter-weight section — three things worth competing at,
+// without the heavier illustrated treatment the two feature sections
+// above get. Keeps the page from feeling like an undifferentiated
+// feature grid by not giving every single feature equal visual
+// weight.
+function CompeteEverywhere() {
+  const items = [
+    { title: 'Room leaderboards', body: 'Every room tracks its own table — settle the group chat argument with numbers.' },
+    { title: 'World Rankings', body: 'One global table, every player, every season. Top 100 gets bragging rights that actually count.' },
+    { title: 'Follow your club', body: "Next match, recent form, news — all in one place for the team you actually care about." },
+  ];
+
+  return (
+    <section className="border-t border-white/10">
+      <div className="mx-auto max-w-6xl px-6 py-20">
+        <h2 className="font-display text-3xl font-bold text-chalk">Climb every table</h2>
+        <div className="mt-10 grid grid-cols-1 gap-8 sm:grid-cols-3">
+          {items.map((item) => (
+            <div key={item.title}>
+              <h3 className="font-display text-base font-bold text-chalk">{item.title}</h3>
+              <p className="mt-2 text-sm leading-relaxed text-white/55">{item.body}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
   );
 }
 
@@ -235,7 +346,7 @@ function FinalCTA() {
     <section className="border-t border-white/10">
       <div className="mx-auto max-w-6xl px-6 py-24 text-center">
         <h2 className="font-display text-3xl font-bold text-chalk sm:text-4xl">
-          Get your room going before kickoff
+          There's a match kicking off right now
         </h2>
         <a
           href="/login"
