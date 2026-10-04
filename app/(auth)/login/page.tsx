@@ -2,7 +2,7 @@
 // PRD §9.2 Signup Flow — Google primary for ease, phone OTP for Nigeria market, email fallback.
 // Extended sessions: 30 days so users stay logged in.
 'use client';
-import { useState } from 'react';
+import { Suspense, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { useAuth } from '@/providers/AuthProvider';
@@ -11,7 +11,7 @@ import { Chrome, Mail, Smartphone, Loader2 } from 'lucide-react';
 
 type LoginMethod = 'google' | 'phone' | 'email';
 
-export default function LoginPage() {
+function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { signInWithGoogle, user } = useAuth();
@@ -201,7 +201,7 @@ export default function LoginPage() {
         {method === 'phone' && (
           <div className="rounded-lg border border-white/10 bg-ink-soft px-4 py-6 text-center">
             <Smartphone className="mx-auto h-6 w-6 text-white/30" />
-            <p className="mt-2 text-sm font-medium text-white/70">Phone sign-in isn't available yet</p>
+            <p className="mt-2 text-sm font-medium text-white/70">Phone sign-in isn&apos;t available yet</p>
             <p className="mt-1 text-xs text-white/40">
               SMS verification requires a paid provider — use Google or Email for now.
             </p>
@@ -319,7 +319,17 @@ export default function LoginPage() {
           here previously wasn't backed by any actual configuration.
           If you set a longer session lifetime in Supabase (Auth ->
           Sessions), update this line to match reality. */}
-      <p className="mt-8 text-xs text-gray-500">🔒 You'll stay signed in until you sign out.</p>
+      <p className="mt-8 text-xs text-gray-500">🔒 You&apos;ll stay signed in until you sign out.</p>
     </main>
+  );
+}
+
+// useSearchParams() opts the page out of static prerendering unless it sits
+// inside a Suspense boundary — required by `next build` (Next 14).
+export default function LoginPage() {
+  return (
+    <Suspense fallback={null}>
+      <LoginForm />
+    </Suspense>
   );
 }

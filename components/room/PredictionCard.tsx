@@ -111,7 +111,7 @@ export function PredictionCard({ market, roomId, existingStake, onPlaced }: Pred
       <div className="rounded-lg bg-ink-soft px-4 py-3.5">
         <p className="text-sm font-semibold">{market.question}</p>
         <p className="mt-1.5 text-sm text-pitch-light">
-          ✓ Predicted "{existingStake.answer}" — {existingStake.stake} MP
+          ✓ Predicted &quot;{existingStake.answer}&quot; — {existingStake.stake} MP
         </p>
       </div>
     );

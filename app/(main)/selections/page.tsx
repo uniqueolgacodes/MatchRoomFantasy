@@ -37,7 +37,7 @@ export default async function SelectionsPage() {
             <p className="mt-1.5 text-sm font-semibold">{s.question}</p>
             <div className="mt-1.5 flex items-center justify-between">
               <p className="text-sm text-pitch-light">
-                Predicted "{s.answer}" — {s.stake} MP
+                Predicted &quot;{s.answer}&quot; — {s.stake} MP
               </p>
               <p className="text-xs text-white/40">
                 {s.room_name ? s.room_name : 'Solo'} · pays {s.potential_payout} MP

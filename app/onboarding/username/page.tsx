@@ -89,7 +89,7 @@ export default function UsernamePage() {
         </div>
         <p className="mt-1.5 text-xs text-white/40">3-20 characters — letters, numbers, underscores only.</p>
         {available === false && !checking && (
-          <p className="mt-1 text-xs text-red-400">That username isn't available.</p>
+          <p className="mt-1 text-xs text-red-400">That username isn&apos;t available.</p>
         )}
         {error && <p className="mt-2 text-sm text-red-400">{error}</p>}
       </div>

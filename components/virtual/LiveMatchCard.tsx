@@ -99,7 +99,7 @@ export function LiveMatchCard({
           {status === 'live' ? (
             <>
               <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-floodlight" />
-              LIVE — {minute}'
+              LIVE — {minute}&apos;
             </>
           ) : (
             <span className="text-white/40">FULL TIME</span>

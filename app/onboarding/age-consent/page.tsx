@@ -41,7 +41,7 @@ export default function AgeConsentPage() {
     <>
       <h1 className="font-display text-2xl font-bold">Quick check</h1>
       <p className="mt-1 text-sm text-white/60">
-        MatchRoom has no cash entry and no cash prizes — Match Points can't be bought, sold, or
+        MatchRoom has no cash entry and no cash prizes — Match Points can&apos;t be bought, sold, or
         cashed out. This is just to keep us on the right side of the rules.
       </p>
 
@@ -58,8 +58,8 @@ export default function AgeConsentPage() {
           {confirmed && <Check className="h-3.5 w-3.5 text-white" strokeWidth={3} />}
         </span>
         <span className="text-sm text-white/80">
-          I confirm I'm <strong className="text-white">18 or older</strong> and agree to
-          MatchRoom's Terms of Service and Privacy Policy.
+          I confirm I&apos;m <strong className="text-white">18 or older</strong> and agree to
+          MatchRoom&apos;s Terms of Service and Privacy Policy.
         </span>
       </button>
 

@@ -166,11 +166,11 @@ function VirtualMatches() {
       <div className="mx-auto grid max-w-6xl grid-cols-1 items-center gap-12 px-6 py-20 lg:grid-cols-2">
         <div>
           <span className="text-xs font-semibold uppercase tracking-wide text-floodlight">Virtual Matches</span>
-          <h2 className="font-display mt-2 text-3xl font-bold text-chalk">No fixtures today? Doesn't matter.</h2>
+          <h2 className="font-display mt-2 text-3xl font-bold text-chalk">No fixtures today? Doesn&apos;t matter.</h2>
           <p className="mt-4 max-w-md text-[15px] leading-relaxed text-white/55">
             Ten-minute matches between our own fictional clubs, a fresh kickoff every few
             minutes, round the clock. Same Match Points, same bragging rights — settled before
-            you've finished your tea, with nothing to wait for.
+            you&apos;ve finished your tea, with nothing to wait for.
           </p>
         </div>
 
@@ -191,7 +191,7 @@ function VirtualMatchMock() {
       <div className="flex items-center justify-between border-b border-white/10 pb-4">
         <span className="flex items-center gap-1.5 text-xs font-semibold text-floodlight">
           <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-floodlight" />
-          LIVE — 7'
+          LIVE — 7&apos;
         </span>
         <span className="text-xs text-white/30">Virtual match</span>
       </div>
@@ -225,7 +225,7 @@ function TickerRow({ emoji, label, minute, team, highlight }: { emoji: string; l
   return (
     <div className={`flex items-center gap-2 rounded-lg px-3 py-2 text-sm ${highlight ? 'bg-pitch/10 font-semibold text-pitch-light' : 'bg-white/[0.03] text-white/70'}`}>
       <span className="text-base leading-none">{emoji}</span>
-      <span className="w-6 shrink-0 tabular-nums text-white/40">{minute}'</span>
+      <span className="w-6 shrink-0 tabular-nums text-white/40">{minute}&apos;</span>
       <span className="flex-1">{label}</span>
       <span className="shrink-0 text-xs text-white/40">{team}</span>
     </div>
@@ -242,9 +242,9 @@ function ShareAnywhere() {
             One link, shared wherever you want
           </h2>
           <p className="mt-4 max-w-md text-[15px] leading-relaxed text-white/55">
-            There's nothing to download and no account to approve before someone can join. Drop
+            There&apos;s nothing to download and no account to approve before someone can join. Drop
             the link in WhatsApp, post it on Twitter, text it, paste it in Discord — wherever
-            your people actually are, that's where the room lives too.
+            your people actually are, that&apos;s where the room lives too.
           </p>
         </div>
       </div>
@@ -259,12 +259,12 @@ function ChatMock() {
   return (
     <div className="rounded-2xl border border-white/10 bg-ink-soft p-5">
       <div className="space-y-3">
-        <Bubble from="Tunde">who's got Arsenal today</Bubble>
+        <Bubble from="Tunde">who&apos;s got Arsenal today</Bubble>
         <Bubble from="Kemi">joining the room now</Bubble>
         <Bubble from="You" mine>
           matchroom.app/r/saturday-squad
         </Bubble>
-        <Bubble from="Tunde">🔒'd in</Bubble>
+        <Bubble from="Tunde">🔒&apos;d in</Bubble>
       </div>
     </div>
   );
@@ -325,7 +325,7 @@ function NoCash() {
       <div className="mx-auto max-w-6xl px-6 py-20">
         <h2 className="font-display text-3xl font-bold text-chalk">No cash, ever</h2>
         <p className="mt-3 max-w-lg text-[15px] text-white/55">
-          MatchRoom is built for bragging rights, not betting slips — that's a rule, not a
+          MatchRoom is built for bragging rights, not betting slips — that&apos;s a rule, not a
           slogan.
         </p>
         <div className="mt-10 grid grid-cols-1 gap-6 sm:grid-cols-3">
@@ -346,7 +346,7 @@ function FinalCTA() {
     <section className="border-t border-white/10">
       <div className="mx-auto max-w-6xl px-6 py-24 text-center">
         <h2 className="font-display text-3xl font-bold text-chalk sm:text-4xl">
-          There's a match kicking off right now
+          There&apos;s a match kicking off right now
         </h2>
         <a
           href="/login"

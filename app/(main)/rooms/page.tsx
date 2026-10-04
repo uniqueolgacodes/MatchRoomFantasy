@@ -15,7 +15,7 @@ export default async function RoomsPage() {
   const { data } = await supabase.from('room_members').select('rooms(id, name, room_type, is_official, is_pinned)').eq('user_id', user.id);
 
   const rooms = (data ?? [])
-    .map((row) => row.rooms as { id: string; name: string; room_type: string; is_official: boolean; is_pinned: boolean } | null)
+    .map((row) => row.rooms as unknown as { id: string; name: string; room_type: string; is_official: boolean; is_pinned: boolean } | null)
     .filter((r): r is NonNullable<typeof r> => r !== null)
     .sort((a, b) => (a.is_pinned === b.is_pinned ? 0 : a.is_pinned ? -1 : 1));
 
@@ -41,7 +41,7 @@ export default async function RoomsPage() {
         </div>
       ) : (
         <div className="mt-6 rounded-lg border border-dashed border-white/10 px-4 py-8 text-center">
-          <p className="text-sm text-white/40">You haven't joined any rooms yet.</p>
+          <p className="text-sm text-white/40">You haven&apos;t joined any rooms yet.</p>
           <Link href="/rooms/discover" className="mt-2 inline-block text-sm font-semibold text-pitch-light hover:text-pitch">
             Discover rooms →
           </Link>

@@ -67,7 +67,7 @@ export default async function HomePage() {
   ]);
 
   const rooms = (roomsRes.data ?? [])
-    .map((row) => row.rooms as { id: string; name: string; room_type: string; is_official: boolean; is_pinned: boolean } | null)
+    .map((row) => row.rooms as unknown as { id: string; name: string; room_type: string; is_official: boolean; is_pinned: boolean } | null)
     .filter((room): room is NonNullable<typeof room> => room !== null)
     .sort((a, b) => {
       if (a.is_pinned !== b.is_pinned) return a.is_pinned ? -1 : 1;
@@ -96,7 +96,7 @@ export default async function HomePage() {
           <h1 className="font-display text-2xl font-bold">
             {firstName ? `Hey, ${firstName}` : `Hey, ${profile?.username ?? 'there'}`}
           </h1>
-          <p className="mt-0.5 text-sm text-white/50">Here's what's happening this week.</p>
+          <p className="mt-0.5 text-sm text-white/50">Here&apos;s what&apos;s happening this week.</p>
         </div>
         <Link
           href="/selections"

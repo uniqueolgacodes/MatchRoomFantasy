@@ -45,7 +45,7 @@ export function EventTicker({ events }: { events: TickerEvent[] }) {
               }`}
             >
               <span className="text-base leading-none">{display.emoji}</span>
-              <span className="w-8 shrink-0 tabular-nums text-white/40">{event.minute}'</span>
+              <span className="w-8 shrink-0 tabular-nums text-white/40">{event.minute}&apos;</span>
               <span className="flex-1">{display.label}</span>
               <span className="shrink-0 text-xs text-white/40">{event.teamShortName}</span>
             </motion.div>

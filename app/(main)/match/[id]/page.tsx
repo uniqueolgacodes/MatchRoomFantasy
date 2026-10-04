@@ -72,7 +72,7 @@ export default async function MatchPage({ params }: { params: { id: string } }) 
   }
 
   const publicRooms = (linkedRooms ?? [])
-    .map((r) => r.rooms as { id: string; name: string; room_code: string; visibility: string } | null)
+    .map((r) => r.rooms as unknown as { id: string; name: string; room_code: string; visibility: string } | null)
     .filter((r): r is NonNullable<typeof r> => r !== null && r.visibility === 'public');
 
   return (

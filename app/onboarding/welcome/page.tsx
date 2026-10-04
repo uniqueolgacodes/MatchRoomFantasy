@@ -33,7 +33,7 @@ export default function WelcomePage() {
         </div>
         <h1 className="font-display mt-4 text-2xl font-bold">Welcome to MatchRoom</h1>
         <p className="mt-1 text-sm text-white/60">
-          Free EPL prediction rooms — no cash, just banter and bragging rights. Here's what you're
+          Free EPL prediction rooms — no cash, just banter and bragging rights. Here&apos;s what you&apos;re
           walking into.
         </p>
       </div>
@@ -58,7 +58,7 @@ export default function WelcomePage() {
         onClick={() => router.push('/onboarding/username')}
         className="mt-8 w-full rounded-lg bg-pitch px-4 py-3 font-semibold transition-colors hover:bg-pitch-dark"
       >
-        Let's get set up
+        Let&apos;s get set up
       </button>
       <p className="mt-3 text-center text-xs text-white/30">Takes about a minute.</p>
     </>

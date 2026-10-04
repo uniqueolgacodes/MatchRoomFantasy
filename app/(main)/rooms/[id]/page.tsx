@@ -64,7 +64,7 @@ export default async function RoomPage({ params }: { params: { id: string } }) {
   ]);
 
   const matches = (linkedMatches ?? [])
-    .map((r) => r.matches as { id: string; home_team_id: string; away_team_id: string; kickoff: string; status: string; home_score: number | null; away_score: number | null } | null)
+    .map((r) => r.matches as unknown as { id: string; home_team_id: string; away_team_id: string; kickoff: string; status: string; home_score: number | null; away_score: number | null } | null)
     .filter((m): m is NonNullable<typeof m> => m !== null);
 
   const teamIds = Array.from(new Set(matches.flatMap((m) => [m.home_team_id, m.away_team_id])));
