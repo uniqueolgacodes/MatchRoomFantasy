@@ -1,4 +1,4 @@
-import type { Metadata } from 'next';
+import type { Metadata, Viewport } from 'next';
 import { Inter, Bricolage_Grotesque } from 'next/font/google';
 import { AuthProvider } from '@/providers/AuthProvider';
 import { ToastProvider } from '@/components/ui/Toast';
@@ -11,6 +11,22 @@ export const metadata: Metadata = {
   title: 'MatchRoom Fantasy',
   description: 'Free matchday prediction rooms for EPL fans — no cash, just banter and bragging rights.',
   manifest: '/manifest.json',
+  // iOS has no manifest-driven install prompt and ignores several
+  // manifest fields Android honors — these meta tags are what
+  // actually controls "looks like a real app, not a Safari tab" once
+  // someone does Add to Home Screen there.
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: 'black-translucent',
+    title: 'MatchRoom',
+  },
+};
+
+// Next 14 split themeColor out of the `metadata` export into its own
+// `viewport` export — keeping it on `metadata` still "works" but logs
+// a build-time deprecation warning.
+export const viewport: Viewport = {
+  themeColor: '#16a34a',
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

@@ -18,7 +18,7 @@ function LoginForm() {
   const supabase = createClient();
   const toast = useToast();
 
-  const [method, setMethod] = useState<LoginMethod>('google');
+  const [method, setMethod] = useState<LoginMethod>('email');
   const [loading, setLoading] = useState(false);
   const [otpSent, setOtpSent] = useState(false);
 
@@ -172,8 +172,23 @@ function LoginForm() {
 
       {/* Content based on selected method */}
       <div className="mt-8 w-full">
-        {/* Google Sign-In */}
+        {/*
+          Google sign-in is intentionally disabled, not removed — same
+          treatment as the phone tab below. handleGoogleSignIn() is
+          left in place and still correctly wired to AuthProvider; the
+          only thing gating it is this render condition, so
+          re-enabling is a one-line flip (change `false &&` below back
+          to active) once Google OAuth is actually ready to ship
+          rather than just configured.
+        */}
         {method === 'google' && (
+          <div className="rounded-lg border border-white/10 bg-ink-soft px-4 py-6 text-center">
+            <Chrome className="mx-auto h-6 w-6 text-white/30" />
+            <p className="mt-2 text-sm font-medium text-white/70">Google sign-in isn&apos;t available yet</p>
+            <p className="mt-1 text-xs text-white/40">Use Email for now.</p>
+          </div>
+        )}
+        {false && method === 'google' && (
           <button
             onClick={handleGoogleSignIn}
             disabled={loading}

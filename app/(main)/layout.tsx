@@ -6,6 +6,7 @@ import { RoomProvider } from '@/providers/RoomProvider';
 import { BuddyProvider } from '@/providers/BuddyProvider';
 import { UserMenu } from '@/components/auth/UserMenu';
 import { WinPopup } from '@/components/notifications/WinPopup';
+import { InstallPromptBanner } from '@/components/pwa/InstallPromptBanner';
 // import { BuddyBall } from '@/components/buddy/BuddyBall';
 
 export default function MainLayout({ children }: { children: React.ReactNode }) {
@@ -13,6 +14,7 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
     <RoomProvider>
       <BuddyProvider>
         <WinPopup />
+        <InstallPromptBanner />
         <header className="flex items-center justify-between border-b border-white/10 px-4 py-3">
           <a href="/" className="font-display text-lg font-bold">
             MatchRoom
