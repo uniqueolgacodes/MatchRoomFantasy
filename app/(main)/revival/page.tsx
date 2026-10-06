@@ -42,7 +42,7 @@ export default async function RevivalPage() {
       </Link>
       <h1 className="mt-3 font-display text-2xl font-bold">Revival Roulette</h1>
       <p className="mt-1 text-sm text-white/50">
-        Down to nothing? One free spin for a top-up, once you've got no predictions left running.
+        Down to nothing? One free spin for a top-up, once you&apos;ve got no predictions left running.
       </p>
 
       <div className="mt-6">
