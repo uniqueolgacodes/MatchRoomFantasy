@@ -24,14 +24,22 @@ export function CreateRoomForm({ matches, preselectedMatchId, preselectedLabel, 
   const router = useRouter();
   const [name, setName] = useState('');
   const [visibility, setVisibility] = useState<'public' | 'private'>('public');
-  const [matchId, setMatchId] = useState(preselectedMatchId ?? matches[0]?.id ?? '');
+  // Only used when there's no preselected match — lets someone pick
+  // any combination of upcoming fixtures for one room, rather than
+  // being limited to exactly one match (the old single-select
+  // dropdown here) or the all-or-nothing "whole day" bundle below.
+  const [selectedIds, setSelectedIds] = useState<string[]>(preselectedMatchId ? [preselectedMatchId] : []);
   const hasWholeDayOption = !!dayMatchIds && dayMatchIds.length > 1;
   const [scope, setScope] = useState<'single' | 'day'>('single');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const selectedMatchIds = scope === 'day' && dayMatchIds ? dayMatchIds : [matchId];
-  const canSubmit = name.trim().length >= 3 && selectedMatchIds.length > 0 && !!selectedMatchIds[0] && !submitting;
+  const selectedMatchIds = scope === 'day' && dayMatchIds ? dayMatchIds : selectedIds;
+  const canSubmit = name.trim().length >= 3 && selectedMatchIds.length > 0 && !submitting;
+
+  function toggleMatch(id: string) {
+    setSelectedIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+  }
 
   async function handleSubmit() {
     if (!canSubmit) return;
@@ -104,18 +112,28 @@ export function CreateRoomForm({ matches, preselectedMatchId, preselectedLabel, 
         </div>
       ) : matches.length > 0 ? (
         <div className="mt-4">
-          <label className="text-xs font-medium text-white/50">Match</label>
-          <select
-            value={matchId}
-            onChange={(e) => setMatchId(e.target.value)}
-            className="mt-1.5 w-full rounded-lg bg-ink-soft px-4 py-3 outline-none focus:ring-2 focus:ring-pitch"
-          >
+          <label className="text-xs font-medium text-white/50">
+            Matches — pick one or several
+          </label>
+          <div className="mt-1.5 flex max-h-64 flex-col gap-1.5 overflow-y-auto">
             {matches.map((m) => (
-              <option key={m.id} value={m.id}>
+              <label
+                key={m.id}
+                className="flex cursor-pointer items-center gap-2.5 rounded-lg bg-ink-soft px-3.5 py-2.5 text-sm transition-colors hover:bg-white/[0.07]"
+              >
+                <input
+                  type="checkbox"
+                  checked={selectedIds.includes(m.id)}
+                  onChange={() => toggleMatch(m.id)}
+                  className="h-4 w-4 shrink-0 accent-pitch"
+                />
                 {m.label}
-              </option>
+              </label>
             ))}
-          </select>
+          </div>
+          <p className="mt-1.5 text-xs text-white/30">
+            {selectedIds.length === 0 ? 'No matches selected yet' : `${selectedIds.length} match${selectedIds.length === 1 ? '' : 'es'} selected`}
+          </p>
         </div>
       ) : (
         <p className="mt-4 rounded-lg border border-dashed border-white/10 px-4 py-4 text-center text-sm text-white/40">

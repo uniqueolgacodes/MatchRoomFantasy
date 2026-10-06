@@ -89,7 +89,7 @@ function LoginForm() {
     let error;
 
     if (isSignUp) {
-      const { error: signUpError } = await supabase.auth.signUp({
+      const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
         email,
         password,
         options: {
@@ -98,7 +98,21 @@ function LoginForm() {
       });
       error = signUpError;
       if (!error) {
-        toast.success('Check your email for the confirmation link!');
+        // signUp() always "succeeds" here regardless of whether email
+        // confirmation is actually turned on in Supabase — the real
+        // signal is whether a session came back. With confirmations
+        // OFF (as this project currently has it), the account is
+        // created and signed in immediately, no email is ever sent,
+        // and telling the person to go check their inbox would be
+        // straightforwardly false. With confirmations ON, no session
+        // comes back yet and the email message is accurate.
+        if (signUpData.session) {
+          toast.success('Account created!');
+          const redirect = searchParams.get('redirect') ?? '/';
+          router.push(redirect);
+        } else {
+          toast.success('Check your email for the confirmation link!');
+        }
       }
     } else {
       const { error: signInError } = await supabase.auth.signInWithPassword({

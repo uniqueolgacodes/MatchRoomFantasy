@@ -18,7 +18,10 @@ export default async function SelectionsPage() {
 
   return (
     <main className="mx-auto max-w-2xl px-4 py-8">
-      <h1 className="font-display text-2xl font-bold">My Selections</h1>
+      <Link href="/" className="inline-flex items-center gap-1 text-sm text-white/50 transition-colors hover:text-white">
+        ← Back
+      </Link>
+      <h1 className="mt-3 font-display text-2xl font-bold">My Selections</h1>
       <p className="mt-1 text-sm text-white/50">Open predictions — settles automatically once the match finishes.</p>
 
       <div className="mt-6 flex flex-col gap-2">

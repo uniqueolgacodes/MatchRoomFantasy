@@ -21,6 +21,12 @@ export function JoinPublicRoomButton({ roomId }: { roomId: string }) {
       setJoining(false);
       return;
     }
+    // router.refresh() re-fetches this route's server data in place —
+    // it does NOT remount this component, so without resetting
+    // `joining` here too, the button stayed stuck on "Joining..."
+    // forever on the success path (only the error branch above ever
+    // reset it). This is the actual "stuck until I reload" bug.
+    setJoining(false);
     router.refresh();
   }
 

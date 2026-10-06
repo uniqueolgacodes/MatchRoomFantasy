@@ -1,11 +1,13 @@
 'use client';
 // One hourly set (2 matches, same kickoff). Both matches' prediction
-// boards share the page-level balance (via balance/onBalanceChange
-// on PredictionsBoard) so staking in one match's board updates what
-// the other one displays too, rather than each drifting independently.
+// boards share the page-level balance (via balance/onBalanceChange)
+// so staking in one match's board updates what the other displays
+// too. Switched to MatchAccordion so the two matches' full markets
+// aren't both expanded by default — each collapses to just its team
+// badges until tapped, and opening one closes the other.
 import { TeamBadge } from './TeamBadge';
 import { Countdown } from './Countdown';
-import { PredictionsBoard } from '@/components/room/PredictionsBoard';
+import { MatchAccordion } from '@/components/room/MatchAccordion';
 import type { Market, StakeInfo } from '@/components/room/PredictionCard';
 
 interface TeamInfo {
@@ -41,27 +43,24 @@ export function UpcomingSetCard({ kickoff, matches, stakes, balance, onBalanceCh
         </span>
       </div>
 
-      <div className="mt-4 flex flex-col gap-5">
-        {matches.map((match) => (
-          <div key={match.id}>
-            <div className="flex items-center justify-center gap-3">
-              <MiniTeam team={match.home} />
-              <span className="text-xs text-white/30">vs</span>
-              <MiniTeam team={match.away} />
-            </div>
-            <div className="mt-3">
-              <PredictionsBoard
-                roomId={null}
-                markets={match.markets}
-                initialBalance={balance}
-                initialStakes={stakes}
-                balance={balance}
-                onBalanceChange={onBalanceChange}
-                hideBalanceHeader
-              />
-            </div>
-          </div>
-        ))}
+      <div className="mt-4">
+        <MatchAccordion
+          roomId={null}
+          stakes={stakes}
+          balance={balance}
+          onBalanceChange={onBalanceChange}
+          matches={matches.map((match) => ({
+            matchId: match.id,
+            markets: match.markets,
+            header: (
+              <div className="flex items-center justify-center gap-3">
+                <MiniTeam team={match.home} />
+                <span className="text-xs text-white/30">vs</span>
+                <MiniTeam team={match.away} />
+              </div>
+            ),
+          }))}
+        />
       </div>
     </div>
   );

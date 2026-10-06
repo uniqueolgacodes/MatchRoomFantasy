@@ -96,10 +96,21 @@ export function VirtualHub({ liveMatches: initialLiveMatches, upcomingSets: init
         setUpcomingSets((prev) =>
           prev.map((set) => ({ ...set, matches: set.matches.filter((m) => m.id !== row.id) })).filter((set) => set.matches.length > 0)
         );
-        setLiveMatches((prev) => [
-          ...prev,
-          { id: match.id, home: match.home, away: match.away, homeScore: 0, awayScore: 0, minute: 0, status: 'live', events: [], picks },
-        ]);
+        setLiveMatches((prev) => {
+          // Guards against the actual bug this was causing: advance-
+          // virtual-matches can fire more than one UPDATE on the same
+          // match in quick succession (the status flip, then a
+          // minute tick), and if both land before the ref above has
+          // re-synced, the same match gets promoted twice — mounting
+          // two LiveMatchCards that both open a Realtime channel
+          // named `virtual-match:{sameId}`, which is what threw the
+          // client-side exception right at kickoff. The functional
+          // updater form here always reads the true latest state
+          // regardless of event timing, so this check is reliable
+          // even when two promotions race each other.
+          if (prev.some((m) => m.id === match.id)) return prev;
+          return [...prev, { id: match.id, home: match.home, away: match.away, homeScore: 0, awayScore: 0, minute: 0, status: 'live', events: [], picks }];
+        });
       })
       .subscribe();
 

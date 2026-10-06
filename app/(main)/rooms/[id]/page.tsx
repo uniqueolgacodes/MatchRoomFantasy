@@ -7,7 +7,7 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 import { getCurrentBalance } from '@/lib/points/balance';
-import { PredictionsBoard } from '@/components/room/PredictionsBoard';
+import { RoomMatchesSection } from '@/components/room/RoomMatchesSection';
 import type { Market, StakeInfo } from '@/components/room/PredictionCard';
 import { JoinPublicRoomButton } from '@/components/room/JoinPublicRoomButton';
 import { ShareRoomButton } from '@/components/room/ShareRoomButton';
@@ -120,19 +120,25 @@ export default async function RoomPage({ params }: { params: { id: string } }) {
       </div>
 
       {marketsByMatch.length > 0 ? (
-        marketsByMatch.map(({ match, markets, initialStakes }) => (
-          <section key={match.id} className="mt-8">
-            <div className="flex items-center justify-between text-sm text-white/50">
-              <span>
-                {teamsById.get(match.home_team_id) ?? '?'} vs {teamsById.get(match.away_team_id) ?? '?'}
-              </span>
-              <span>{formatKickoff(match.kickoff)}</span>
-            </div>
-            <div className="mt-3">
-              <PredictionsBoard roomId={room.id} markets={markets} initialBalance={balance} initialStakes={initialStakes} />
-            </div>
-          </section>
-        ))
+        <section className="mt-8">
+          <RoomMatchesSection
+            roomId={room.id}
+            initialBalance={balance}
+            initialStakes={Object.assign({}, ...marketsByMatch.map((m) => m.initialStakes))}
+            matches={marketsByMatch.map(({ match, markets }) => ({
+              matchId: match.id,
+              markets,
+              header: (
+                <div className="flex items-center justify-between">
+                  <span className="font-medium">
+                    {teamsById.get(match.home_team_id) ?? '?'} vs {teamsById.get(match.away_team_id) ?? '?'}
+                  </span>
+                  <span className="text-white/50">{formatKickoff(match.kickoff)}</span>
+                </div>
+              ),
+            }))}
+          />
+        </section>
       ) : (
         <p className="mt-8 rounded-lg border border-dashed border-white/10 px-4 py-6 text-center text-sm text-white/40">
           No match linked to this room yet.

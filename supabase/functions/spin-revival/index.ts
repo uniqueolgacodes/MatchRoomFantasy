@@ -2,6 +2,14 @@
 // Called by the client when the user requests a spin. Validates
 // eligibility server-side (never trust a client-computed check) and
 // applies the outcome atomically via apply_point_transaction.
+//
+// Added: a person with any unsettled prediction can't spin, even if
+// their balance has dropped under the threshold — they could still
+// win more MP from a prediction that hasn't resolved yet, and a free
+// top-up in the meantime would be giving away MP on top of a
+// prediction that might pay out anyway. "Running" means
+// prediction_stakes.is_correct is still null — placed, not yet
+// settled.
 
 import { supabase, Sentry } from '../_shared/clients.ts';
 
@@ -20,14 +28,18 @@ Deno.serve(async (req) => {
     const userId = userData.user.id;
 
     const { data: season } = await supabase.rpc('current_season');
-    const [{ data: balance }, { data: lastSpin }, { data: profile }] = await Promise.all([
+    const [{ data: balance }, { data: lastSpin }, { data: profile }, { count: runningCount }] = await Promise.all([
       supabase.from('point_balances').select('balance').eq('user_id', userId).eq('season', season).maybeSingle(),
       supabase.from('revival_spins').select('spun_at').eq('user_id', userId).order('spun_at', { ascending: false }).limit(1).maybeSingle(),
       supabase.from('profiles').select('created_at').eq('id', userId).single(),
+      supabase.from('prediction_stakes').select('id', { count: 'exact', head: true }).eq('user_id', userId).is('is_correct', null),
     ]);
 
     if ((balance?.balance ?? 0) >= REVIVAL_THRESHOLD) {
       return Response.json({ eligible: false, reason: 'Balance too high' }, { status: 400 });
+    }
+    if ((runningCount ?? 0) > 0) {
+      return Response.json({ eligible: false, reason: 'You have a prediction still running' }, { status: 400 });
     }
     const ageDays = (Date.now() - new Date(profile!.created_at).getTime()) / 86_400_000;
     if (ageDays < MIN_ACCOUNT_AGE_DAYS) {
@@ -52,7 +64,7 @@ Deno.serve(async (req) => {
       balance_before: balanceBefore, balance_after: balanceBefore + outcome,
     });
 
-    return Response.json({ ok: true, outcome });
+    return Response.json({ ok: true, outcome, newBalance: balanceBefore + outcome });
   } catch (err) {
     Sentry.captureException(err);
     return new Response('spin-revival failed', { status: 500 });
