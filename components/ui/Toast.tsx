@@ -8,7 +8,7 @@
 //   const toast = useToast();
 //   toast.error('Something went wrong');
 //   toast.success('Saved');
-import { createContext, useCallback, useContext, useState } from 'react';
+import { createContext, useCallback, useContext, useRef, useState } from 'react';
 
 type ToastVariant = 'success' | 'error' | 'info';
 
@@ -25,16 +25,16 @@ interface ToastContextType {
 }
 
 const ToastContext = createContext<ToastContextType>({
-  success: () => {},
-  error: () => {},
-  info: () => {},
+  success: () => { },
+  error: () => { },
+  info: () => { },
 });
 
 const DURATION_MS = 5000;
 
 export function ToastProvider({ children }: { children: React.ReactNode }) {
   const [toasts, setToasts] = useState<Toast[]>([]);
-  let nextId = 0;
+  const nextId = useRef(0);
 
   const dismiss = useCallback((id: number) => {
     setToasts((current) => current.filter((t) => t.id !== id));
@@ -42,7 +42,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
 
   const push = useCallback(
     (variant: ToastVariant, message: string) => {
-      const id = nextId++;
+      const id = nextId.current++;
       setToasts((current) => [...current, { id, message, variant }]);
       setTimeout(() => dismiss(id), DURATION_MS);
     },

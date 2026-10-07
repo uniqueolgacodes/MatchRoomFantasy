@@ -85,7 +85,7 @@ export function PushRegistration() {
         <div className="flex-1">
           <p className="text-sm font-semibold">Get notified when you win</p>
           <p className="mt-0.5 text-xs text-white/50">
-            We'll only ping you for things that matter — a win, a match about to lock.
+            We&apos;ll only ping you for things that matter — a win, a match about to lock.
           </p>
           <div className="mt-2.5 flex gap-2">
             <button
