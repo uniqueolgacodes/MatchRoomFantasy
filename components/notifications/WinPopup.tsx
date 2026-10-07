@@ -3,18 +3,24 @@
 // every win, real or virtual, since both settle through the same
 // settle_predictions_batch function.
 //
+// Reads from the generalized `notifications` table (type='win') as
+// of Phase A of the notification system — this used to be its own
+// single-purpose win_notifications table, now folded into the
+// general one so a future notification center can show everything
+// in one place rather than needing to merge two tables.
+//
 // Two sources feed the queue:
-//  1. A catch-up fetch on mount/login for any win_notifications with
-//     seen_at still null — this is what makes a win settled while
+//  1. A catch-up fetch on mount/login for any win notification with
+//     read_at still null — this is what makes a win settled while
 //     offline still show up once the person's back. Without this,
 //     only a live postgres_changes INSERT (received while actually
 //     connected) ever triggered the popup, so anything that happened
 //     while offline silently never got surfaced even after reconnecting.
 //  2. The existing live Realtime listener, for the "currently
 //     online" case, so it still feels instant while browsing.
-// Either way, a notification is marked seen_at the moment it starts
+// Either way, a notification is marked read_at the moment it starts
 // being DISPLAYED (not on dismiss) — manual-close means someone
-// could leave it on screen a while without closing it, and "seen"
+// could leave it on screen a while without closing it, and "read"
 // should track what they were actually shown, not when they clicked
 // away.
 import { useEffect, useRef, useState } from 'react';
@@ -56,29 +62,39 @@ export function WinPopup() {
     if (!user) return;
     const supabase = createClient();
     supabase
-      .from('win_notifications')
-      .select('id, mp_amount')
+      .from('notifications')
+      .select('id, metadata')
       .eq('user_id', user.id)
-      .is('seen_at', null)
+      .eq('type', 'win')
+      .is('read_at', null)
       .order('created_at', { ascending: true })
       .then(({ data }) => {
         if (!data || data.length === 0) return;
-        setQueue((prev) => [...data.map((row) => ({ id: row.id, mpAmount: row.mp_amount, message: randomMessage() })), ...prev]);
+        setQueue((prev) => [
+          ...data.map((row) => ({ id: row.id, mpAmount: row.metadata?.mp_amount ?? 0, message: randomMessage() })),
+          ...prev,
+        ]);
       });
   }, [user]);
 
   // Live: anything that settles while connected, shown immediately.
+  // Realtime's filter option only supports one column condition, so
+  // this subscribes on user_id and checks type === 'win' in the
+  // callback — other notification types landing here just get
+  // ignored by this listener, not dropped (a future notification
+  // center would subscribe the same way without the type check).
   useEffect(() => {
     if (!user) return;
     const supabase = createClient();
     const channel = supabase
-      .channel(`win-notifications:${user.id}`)
+      .channel(`notifications:${user.id}`)
       .on(
         'postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'win_notifications', filter: `user_id=eq.${user.id}` },
+        { event: 'INSERT', schema: 'public', table: 'notifications', filter: `user_id=eq.${user.id}` },
         (payload) => {
-          const row = payload.new as { id: string; mp_amount: number };
-          setQueue((prev) => [...prev, { id: row.id, mpAmount: row.mp_amount, message: randomMessage() }]);
+          const row = payload.new as { id: string; type: string; metadata: { mp_amount?: number } };
+          if (row.type !== 'win') return;
+          setQueue((prev) => [...prev, { id: row.id, mpAmount: row.metadata?.mp_amount ?? 0, message: randomMessage() }]);
         }
       )
       .subscribe();
@@ -101,10 +117,10 @@ export function WinPopup() {
         hasFiredConfettiRef.current = next.id;
         fireConfetti();
       }
-      // Mark seen the moment it's actually shown — fire-and-forget,
+      // Mark read the moment it's actually shown — fire-and-forget,
       // doesn't block the UI either way.
       const supabase = createClient();
-      supabase.from('win_notifications').update({ seen_at: new Date().toISOString() }).eq('id', next.id).then();
+      supabase.from('notifications').update({ read_at: new Date().toISOString() }).eq('id', next.id).then();
     }
   }, [current, queue]);
 
