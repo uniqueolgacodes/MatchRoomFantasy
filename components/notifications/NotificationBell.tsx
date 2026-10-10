@@ -12,6 +12,7 @@
 // trigger does).
 import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
 import { useAuth } from '@/providers/AuthProvider';
 import { timeAgo } from '@/lib/utils/format';
@@ -157,6 +158,13 @@ export function NotificationBell() {
                             ))}
                         </div>
                     )}
+                    <Link
+                        href="/profile/settings"
+                        onClick={() => setOpen(false)}
+                        className="block border-t border-white/10 px-4 py-2.5 text-center text-xs font-medium text-white/50 transition-colors hover:text-white"
+                    >
+                        Notification settings
+                    </Link>
                 </div>
             )}
         </div>

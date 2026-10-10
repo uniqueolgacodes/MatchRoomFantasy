@@ -11,8 +11,8 @@
 // prop instead, and remember a "not now" for a real cooldown rather
 // than asking again on the very next visit.
 import { useEffect, useRef, useState } from 'react';
-import { createClient } from '@/lib/supabase/client';
 import { useAuth } from '@/providers/AuthProvider';
+import { enablePush } from '@/lib/notifications/push';
 
 const DISMISS_STORAGE_KEY = 'matchroom_push_prompt_dismissed_at';
 const DISMISS_COOLDOWN_DAYS = 14;
@@ -49,26 +49,13 @@ export function PushRegistration() {
   async function enable() {
     if (!user) return;
     setBusy(true);
-    try {
-      const OneSignal = (await import('react-onesignal')).default;
-      await OneSignal.init({ appId: process.env.NEXT_PUBLIC_ONESIGNAL_APP_ID! });
-      await OneSignal.Notifications.requestPermission();
-
-      const playerId = OneSignal.User.PushSubscription.id;
-      if (playerId) {
-        const supabase = createClient();
-        await supabase.from('push_subscriptions').upsert(
-          { user_id: user.id, provider: 'onesignal', external_id: playerId, user_agent: navigator.userAgent, last_used_at: new Date().toISOString() },
-          { onConflict: 'user_id,provider,external_id' }
-        );
-      }
-    } catch {
-      // Permission denied or OneSignal unreachable — not fatal, the
-      // person just doesn't get push, in-app notifications still work.
-    } finally {
-      setBusy(false);
-      dismiss();
-    }
+    // The OneSignal setup lives in lib/notifications/push.ts so this
+    // banner and the settings page share it. A denied permission or an
+    // unreachable OneSignal isn't fatal: the person just doesn't get
+    // push, and in-app notifications still work.
+    await enablePush(user.id);
+    setBusy(false);
+    dismiss();
   }
 
   function dismiss() {
