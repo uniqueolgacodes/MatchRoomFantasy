@@ -12,9 +12,10 @@ interface RoomMatchesSectionProps {
   matches: AccordionMatch[];
   initialBalance: number;
   initialStakes: Record<string, StakeInfo>;
+  defaultOpenId?: string | null;
 }
 
-export function RoomMatchesSection({ roomId, matches, initialBalance, initialStakes }: RoomMatchesSectionProps) {
+export function RoomMatchesSection({ roomId, matches, initialBalance, initialStakes, defaultOpenId }: RoomMatchesSectionProps) {
   const [balance, setBalance] = useState(initialBalance);
 
   return (
@@ -28,6 +29,7 @@ export function RoomMatchesSection({ roomId, matches, initialBalance, initialSta
         stakes={initialStakes}
         balance={balance}
         onBalanceChange={setBalance}
+        defaultOpenId={defaultOpenId}
       />
     </div>
   );
