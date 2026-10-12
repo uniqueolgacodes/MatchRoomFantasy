@@ -1,8 +1,6 @@
 // One place for "turn on push for this browser". PushRegistration (the
 // banner) and the settings page both call this, so OneSignal is only
-// ever initialised once per page load — calling init() twice makes the
-// SDK complain — and the "wait for the subscription id" fix below
-// applies to both.
+// ever initialised once per page load.
 import { createClient } from "@/lib/supabase/client";
 
 type OneSignalInstance = (typeof import("react-onesignal"))["default"];
@@ -12,10 +10,18 @@ let initPromise: Promise<OneSignalInstance> | null = null;
 async function getOneSignal(): Promise<OneSignalInstance> {
   if (!initPromise) {
     initPromise = (async () => {
+      const appId = process.env.NEXT_PUBLIC_ONESIGNAL_APP_ID;
+      if (!appId) {
+        throw new Error(
+          "Missing NEXT_PUBLIC_ONESIGNAL_APP_ID in environment variables.",
+        );
+      }
+
       const OneSignal = (await import("react-onesignal")).default;
       await OneSignal.init({
-        appId: process.env.NEXT_PUBLIC_ONESIGNAL_APP_ID!,
+        appId: appId,
         allowLocalhostAsSecureOrigin: true, // Required for local dev testing
+        notifyButton: { enable: false },
       });
       return OneSignal;
     })().catch((err) => {
@@ -27,15 +33,16 @@ async function getOneSignal(): Promise<OneSignalInstance> {
 }
 
 // requestPermission() can resolve before OneSignal has finished
-// creating the subscription, so PushSubscription.id may still be
-// empty right after it. The Phase A code read it immediately and
-// silently saved nothing when it was empty, which would leave a
-// device that said yes but was never registered. This waits for the
-// id to show up, up to a timeout.
+// creating the subscription. This waits for the id to show up.
 async function waitForSubscriptionId(
   OneSignal: OneSignalInstance,
   timeoutMs = 8000,
 ): Promise<string | null> {
+  // In v16 API, opting in is sometimes required explicitly
+  if (OneSignal.User.PushSubscription.optIn) {
+    await OneSignal.User.PushSubscription.optIn();
+  }
+
   const sub = OneSignal.User.PushSubscription as any;
   if (sub.id) return sub.id as string;
 
@@ -53,7 +60,11 @@ async function waitForSubscriptionId(
       if (id) finish(id);
     };
 
-    timer = setTimeout(() => finish(sub.id ?? null), timeoutMs);
+    timer = setTimeout(() => {
+      console.warn("[Push] Timed out waiting for OneSignal Subscription ID.");
+      finish(sub.id ?? null);
+    }, timeoutMs);
+
     sub.addEventListener("change", onChange);
   });
 }
@@ -63,6 +74,11 @@ export type EnablePushResult = "enabled" | "denied" | "unavailable";
 export async function enablePush(userId: string): Promise<EnablePushResult> {
   try {
     const OneSignal = await getOneSignal();
+
+    // Tie the current user's ID to this browser in OneSignal
+    await OneSignal.login(userId);
+
+    // Ask the browser for permission
     await OneSignal.Notifications.requestPermission();
 
     if (
@@ -74,14 +90,15 @@ export async function enablePush(userId: string): Promise<EnablePushResult> {
 
     const playerId = await waitForSubscriptionId(OneSignal);
     if (!playerId) {
-      console.error("[Push] OneSignal returned a null Player ID or timed out.");
+      console.error(
+        "[Push] No Player ID returned. Ensure public/OneSignalSDKWorker.js exists and you don't have strict adblockers enabled.",
+      );
       return "unavailable";
     }
 
     const supabase = createClient();
 
-    // Safe DB update: check if it exists first rather than relying on a
-    // potentially mismatched upsert constraint that throws Postgres errors.
+    // Safe DB update: check if it exists first
     const { data: existing } = await supabase
       .from("push_subscriptions")
       .select("id")
