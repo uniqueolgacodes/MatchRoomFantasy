@@ -9,12 +9,14 @@ import { NotificationBell } from '@/components/notifications/NotificationBell';
 import { WinPopup } from '@/components/notifications/WinPopup';
 import { PushRegistration } from '@/components/notifications/PushRegistration';
 import { InstallPromptBanner } from '@/components/pwa/InstallPromptBanner';
+import { BetaWarningModal } from '@/components/ui/BetaWarningModal';
 // import { BuddyBall } from '@/components/buddy/BuddyBall';
 
 export default function MainLayout({ children }: { children: React.ReactNode }) {
   return (
     <RoomProvider>
       <BuddyProvider>
+        <BetaWarningModal />
         <WinPopup />
         <InstallPromptBanner />
         <PushRegistration />

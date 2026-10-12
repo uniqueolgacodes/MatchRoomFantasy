@@ -21,7 +21,7 @@ export function RoomListCard({ id, name, roomType, isOfficial }: RoomListCardPro
   return (
     <a
       href={`/rooms/${id}`}
-      className="flex min-w-[180px] flex-col justify-between rounded-lg bg-ink-soft px-4 py-3 transition-colors hover:bg-white/[0.07]"
+      className="flex w-[220px] shrink-0 snap-start flex-col justify-between rounded-lg bg-ink-soft px-4 py-3 transition-colors hover:bg-white/[0.07] sm:w-[200px]"
     >
       <p className="text-sm font-semibold leading-snug">{name}</p>
       <p className="mt-2 text-xs text-white/40">

@@ -15,6 +15,7 @@ async function getOneSignal(): Promise<OneSignalInstance> {
       const OneSignal = (await import("react-onesignal")).default;
       await OneSignal.init({
         appId: process.env.NEXT_PUBLIC_ONESIGNAL_APP_ID!,
+        allowLocalhostAsSecureOrigin: true, // Required for local dev testing
       });
       return OneSignal;
     })().catch((err) => {
@@ -39,16 +40,20 @@ async function waitForSubscriptionId(
   if (sub.id) return sub.id as string;
 
   return new Promise((resolve) => {
+    let timer: ReturnType<typeof setTimeout>;
+
     const finish = (id: string | null) => {
       clearTimeout(timer);
       sub.removeEventListener("change", onChange);
       resolve(id);
     };
+
     const onChange = (event: any) => {
       const id = event?.current?.id ?? sub.id;
       if (id) finish(id);
     };
-    const timer = setTimeout(() => finish(sub.id ?? null), timeoutMs);
+
+    timer = setTimeout(() => finish(sub.id ?? null), timeoutMs);
     sub.addEventListener("change", onChange);
   });
 }
@@ -63,25 +68,57 @@ export async function enablePush(userId: string): Promise<EnablePushResult> {
     if (
       typeof Notification === "undefined" ||
       Notification.permission !== "granted"
-    )
+    ) {
       return "denied";
+    }
 
     const playerId = await waitForSubscriptionId(OneSignal);
-    if (!playerId) return "unavailable";
+    if (!playerId) {
+      console.error("[Push] OneSignal returned a null Player ID or timed out.");
+      return "unavailable";
+    }
 
     const supabase = createClient();
-    const { error } = await supabase.from("push_subscriptions").upsert(
-      {
+
+    // Safe DB update: check if it exists first rather than relying on a
+    // potentially mismatched upsert constraint that throws Postgres errors.
+    const { data: existing } = await supabase
+      .from("push_subscriptions")
+      .select("id")
+      .eq("external_id", playerId)
+      .maybeSingle();
+
+    if (existing) {
+      const { error } = await supabase
+        .from("push_subscriptions")
+        .update({
+          user_id: userId,
+          last_used_at: new Date().toISOString(),
+        })
+        .eq("id", existing.id);
+
+      if (error) {
+        console.error("[Push] Database update failed:", error);
+        return "unavailable";
+      }
+    } else {
+      const { error } = await supabase.from("push_subscriptions").insert({
         user_id: userId,
         provider: "onesignal",
         external_id: playerId,
         user_agent: navigator.userAgent,
         last_used_at: new Date().toISOString(),
-      },
-      { onConflict: "user_id,provider,external_id" },
-    );
-    return error ? "unavailable" : "enabled";
-  } catch {
+      });
+
+      if (error) {
+        console.error("[Push] Database insert failed:", error);
+        return "unavailable";
+      }
+    }
+
+    return "enabled";
+  } catch (err) {
+    console.error("[Push] Fatal setup error:", err);
     return "unavailable";
   }
 }

@@ -58,11 +58,11 @@ export default async function HomePage() {
     getCurrentBalance(supabase, user.id),
     followedTeamIds.length > 0
       ? supabase
-          .from('news_articles')
-          .select('title, summary, source, url, published_at')
-          .overlaps('team_ids', followedTeamIds)
-          .order('published_at', { ascending: false })
-          .limit(6)
+        .from('news_articles')
+        .select('title, summary, source, url, published_at')
+        .overlaps('team_ids', followedTeamIds)
+        .order('published_at', { ascending: false })
+        .limit(6)
       : supabase.from('news_articles').select('title, summary, source, url, published_at').order('published_at', { ascending: false }).limit(6),
   ]);
 
@@ -120,7 +120,7 @@ export default async function HomePage() {
       {/* Your Rooms */}
       <Section title="Your Rooms" action={{ href: '/rooms/discover', label: 'Discover more' }}>
         {rooms.length > 0 ? (
-          <div className="flex gap-2.5 overflow-x-auto pb-1">
+          <div className="-mx-4 flex gap-3 overflow-x-auto px-4 pb-4 snap-x snap-mandatory [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
             {rooms.map((room) => (
               <RoomListCard key={room.id} id={room.id} name={room.name} roomType={room.room_type} isOfficial={room.is_official} />
             ))}
