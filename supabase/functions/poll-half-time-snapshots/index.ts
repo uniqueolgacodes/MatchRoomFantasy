@@ -122,6 +122,56 @@ Deno.serve(async () => {
           if (!error) {
             captured++;
             await openHalfTimeMarkets(match.id);
+
+            // --- SEND HALF-TIME PUSH NOTIFICATIONS ---
+            const { data: roomMatches } = await supabase
+              .from("room_matches")
+              .select("room_id")
+              .eq("match_id", match.id);
+            if (roomMatches && roomMatches.length > 0) {
+              const roomIds = roomMatches.map((rm) => rm.room_id);
+              const { data: members } = await supabase
+                .from("room_members")
+                .select("user_id")
+                .in("room_id", roomIds);
+              if (members && members.length > 0) {
+                const userIds = [...new Set(members.map((m) => m.user_id))];
+                const title = "Half-time markets are open! ⏱️";
+                const body =
+                  "You have 15 minutes to lock in your second-half picks.";
+
+                await supabase.from("notifications").insert(
+                  userIds.map((uid) => ({
+                    user_id: uid,
+                    type: "reminder",
+                    title,
+                    body,
+                    deep_link: `/match/${match.id}`,
+                  })),
+                );
+
+                await fetch(
+                  `${Deno.env.get("SUPABASE_URL")}/functions/v1/send-push`,
+                  {
+                    method: "POST",
+                    headers: {
+                      "Content-Type": "application/json",
+                      Authorization: `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
+                    },
+                    body: JSON.stringify({
+                      type: "reminder",
+                      notifications: userIds.map((uid) => ({
+                        user_id: uid,
+                        title,
+                        body,
+                        data: { match_id: match.id },
+                      })),
+                    }),
+                  },
+                ).catch((err) => console.error("Half-time push failed:", err));
+              }
+            }
+            // -----------------------------------------
           }
           await supabase
             .from("matches")

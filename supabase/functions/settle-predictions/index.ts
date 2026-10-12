@@ -161,6 +161,30 @@ Deno.serve(async (req) => {
       );
     }
 
+    // --- SEND WIN PUSH NOTIFICATIONS ---
+    const winningAwards = awards.filter((a) => a.mp_change > 0);
+    if (winningAwards.length > 0) {
+      const pushPayload = {
+        type: "win",
+        notifications: winningAwards.map((a) => ({
+          user_id: a.user_id,
+          title: "You called it! 🏆",
+          body: `You just won ${a.mp_change} MP on your prediction.`,
+          data: { match_id, prediction_id: a.prediction_id },
+        })),
+      };
+
+      await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/send-push`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
+        },
+        body: JSON.stringify(pushPayload),
+      }).catch((err) => console.error("Failed to dispatch win pushes", err));
+    }
+    // -----------------------------------
+
     return Response.json({ ok: true, settled: awards.length });
   } catch (err) {
     Sentry.captureException(err, { extra: { match_id } });
