@@ -37,7 +37,7 @@ export function BetaWarningModal() {
                         <div className="flex h-12 w-12 items-center justify-center rounded-full bg-floodlight/20 text-2xl">
                             🚧
                         </div>
-                        <h2 className="mt-4 font-display text-xl font-bold">We're in Beta</h2>
+                        <h2 className="mt-4 font-display text-xl font-bold">We&apos;re in Beta</h2>
                         <p className="mt-2 text-sm leading-relaxed text-white/70">
                             Welcome to MatchRoom! We are still testing things out. You might encounter some bugs, and features (like points or rooms) could reset while we fine-tune the system.
                         </p>
