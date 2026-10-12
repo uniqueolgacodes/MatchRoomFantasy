@@ -14,9 +14,9 @@ export type MatchPhase =
   | "cancelled";
 
 // Full-time polling starts ~90 min after kickoff and retries for a
-// while. Past 3 hours with no final status, say "awaiting result"
+// while. Past 2 hours 10 mins with no final status, say "awaiting result"
 // instead of claiming it is still live.
-const AWAITING_RESULT_AFTER_MS = 3 * 60 * 60 * 1000;
+const AWAITING_RESULT_AFTER_MS = 130 * 60 * 1000;
 
 export function deriveMatchPhase(
   status: string,

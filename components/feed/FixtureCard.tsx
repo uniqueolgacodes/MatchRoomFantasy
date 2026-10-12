@@ -4,6 +4,7 @@
 // a server component — it's just markup, no client hook involved.
 import Image from 'next/image';
 import { formatKickoff } from '@/lib/utils/format';
+import { deriveMatchPhase } from '@/lib/matches/phase';
 
 interface FixtureCardProps {
   homeShortName: string;
@@ -28,7 +29,9 @@ export function FixtureCard({
   awayScore,
   minute,
 }: FixtureCardProps) {
-  const isLive = status === 'live' || status === 'half_time';
+  const phase = deriveMatchPhase(status, kickoff, Date.now());
+  const isLive = phase === 'in_play' || phase === 'half_time';
+  const isAwaiting = phase === 'awaiting_result';
   const hasScore = homeScore !== null && awayScore !== null;
 
   return (
@@ -50,7 +53,17 @@ export function FixtureCard({
         {isLive && (
           <p className="mt-0.5 flex items-center justify-end gap-1 text-[11px] font-medium text-floodlight">
             <span className="h-1.5 w-1.5 rounded-full bg-floodlight" />
-            {status === 'half_time' ? 'Half-time' : minute ? `${minute}'` : 'Live'}
+            {phase === 'half_time' ? 'Half-time' : minute ? `${minute}'` : 'Live'}
+          </p>
+        )}
+        {isAwaiting && (
+          <p className="mt-0.5 text-[11px] font-medium uppercase tracking-wide text-white/40">
+            Awaiting Result
+          </p>
+        )}
+        {phase === 'postponed' && (
+          <p className="mt-0.5 text-[11px] font-medium uppercase tracking-wide text-white/40">
+            Postponed
           </p>
         )}
       </div>
