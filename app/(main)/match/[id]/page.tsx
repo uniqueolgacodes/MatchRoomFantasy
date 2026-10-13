@@ -42,7 +42,7 @@ export default async function MatchPage({ params }: { params: { id: string } }) 
   // Safely cast to 'any' to bypass strict Supabase 'never' inference on Netlify
   const match = rawMatch as any;
 
-  const [{ data: teams }, { data: predictionRows }, { data: linkedRooms }, balance] = await Promise.all([
+  const [teamsRes, predictionsRes, roomsRes, balance] = await Promise.all([
     supabase.from('teams').select('id, name, short_name, crest_url').in('id', [match.home_team_id, match.away_team_id]),
     supabase
       .from('predictions')
@@ -53,8 +53,13 @@ export default async function MatchPage({ params }: { params: { id: string } }) 
     getCurrentBalance(supabase, user.id),
   ]);
 
-  const home = teams?.find((t) => t.id === match.home_team_id);
-  const away = teams?.find((t) => t.id === match.away_team_id);
+  // Safely cast the responses to bypass strict Supabase 'never' inference
+  const teams = teamsRes.data as any[] | null;
+  const predictionRows = predictionsRes.data as any[] | null;
+  const linkedRooms = roomsRes.data as any[] | null;
+
+  const home = teams?.find((t: any) => t.id === match.home_team_id);
+  const away = teams?.find((t: any) => t.id === match.away_team_id);
 
   const now = Date.now();
   const phase = deriveMatchPhase(match.status, match.kickoff, now);
