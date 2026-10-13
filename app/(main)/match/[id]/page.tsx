@@ -83,18 +83,21 @@ export default async function MatchPage({ params }: { params: { id: string } }) 
   // The user's solo stakes on every market for this match, locked and
   // settled ones included, so the panel can show what they picked and
   // how it turned out.
-  const { data: myStakes } =
+  const { data: rawMyStakes } =
     allPredictions.length > 0
       ? await supabase
         .from('prediction_stakes')
         .select('prediction_id, answer, stake, potential_payout, is_correct, points_awarded, settled_at')
-        .in('prediction_id', allPredictions.map((p) => p.id))
+        .in('prediction_id', allPredictions.map((p: any) => p.id))
         .eq('user_id', user.id)
         .is('room_id', null)
       : { data: [] };
 
+  // Safely bypass strict inference
+  const myStakes = rawMyStakes as any[] | null;
+
   const initialStakes: Record<string, StakeInfo> = Object.fromEntries(
-    (myStakes ?? []).filter((s) => openIds.has(s.prediction_id)).map((s) => [s.prediction_id, { answer: s.answer, stake: s.stake }])
+    (myStakes ?? []).filter((s: any) => openIds.has(s.prediction_id)).map((s: any) => [s.prediction_id, { answer: s.answer, stake: s.stake }])
   );
   const picks = buildPicks(allPredictions, myStakes ?? []);
 
