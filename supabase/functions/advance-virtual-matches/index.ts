@@ -17,7 +17,7 @@
 
 import { supabase, Sentry } from "../_shared/clients.ts";
 
-const MATCH_DURATION_SECONDS = 10 * 60;
+const MATCH_DURATION_SECONDS = 5 * 60;
 const MATCH_DURATION_MINUTES = MATCH_DURATION_SECONDS / 60;
 
 interface ScriptTick {
