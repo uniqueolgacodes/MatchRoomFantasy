@@ -1,5 +1,4 @@
-import type { SupabaseClient } from '@supabase/supabase-js';
-import { POINTS } from '@/lib/points/constants';
+import { POINTS } from "@/lib/points/constants";
 
 // Mirrors public.current_season() (0001_init.sql) — used only if the
 // RPC call fails, so callers still get a sensible season instead of
@@ -17,11 +16,19 @@ export function fallbackSeason(): string {
  * at all until their first transaction, so "no row" reads as 10, not
  * 0 — same rule the home page already applies.
  */
-export async function getCurrentBalance(supabase: SupabaseClient, userId: string): Promise<number> {
-  const { data: seasonData } = await supabase.rpc('current_season');
+export async function getCurrentBalance(
+  supabase: any,
+  userId: string,
+): Promise<number> {
+  const { data: seasonData } = await supabase.rpc("current_season");
   const season = (seasonData as string | null) ?? fallbackSeason();
 
-  const { data } = await supabase.from('point_balances').select('balance').eq('user_id', userId).eq('season', season).maybeSingle();
+  const { data } = await supabase
+    .from("point_balances")
+    .select("balance")
+    .eq("user_id", userId)
+    .eq("season", season)
+    .maybeSingle();
 
   return data?.balance ?? POINTS.NEW_SIGNUP_BALANCE;
 }
