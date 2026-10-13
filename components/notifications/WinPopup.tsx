@@ -4,30 +4,14 @@
 // settle_predictions_batch function.
 //
 // Reads from the generalized `notifications` table (type='win') as
-// of Phase A of the notification system — this used to be its own
-// single-purpose win_notifications table, now folded into the
-// general one so a future notification center can show everything
-// in one place rather than needing to merge two tables.
-//
-// Two sources feed the queue:
-//  1. A catch-up fetch on mount/login for any win notification with
-//     read_at still null — this is what makes a win settled while
-//     offline still show up once the person's back. Without this,
-//     only a live postgres_changes INSERT (received while actually
-//     connected) ever triggered the popup, so anything that happened
-//     while offline silently never got surfaced even after reconnecting.
-//  2. The existing live Realtime listener, for the "currently
-//     online" case, so it still feels instant while browsing.
-// Either way, a notification is marked read_at the moment it starts
-// being DISPLAYED (not on dismiss) — manual-close means someone
-// could leave it on screen a while without closing it, and "read"
-// should track what they were actually shown, not when they clicked
-// away.
+// of Phase A of the notification system.
+
 import { useEffect, useRef, useState } from 'react';
 import confetti from 'canvas-confetti';
 import { motion, AnimatePresence } from 'framer-motion';
 import { createClient } from '@/lib/supabase/client';
 import { useAuth } from '@/providers/AuthProvider';
+import { useSound } from '@/providers/SoundProvider'; // <-- IMPORT ADDED HERE
 
 const CONGRATS_MESSAGES = [
   "Oya, that's how it's done!",
@@ -55,9 +39,9 @@ export function WinPopup() {
   const [queue, setQueue] = useState<WinEvent[]>([]);
   const [current, setCurrent] = useState<WinEvent | null>(null);
   const hasFiredConfettiRef = useRef<string | null>(null);
+  const { playWin } = useSound(); // <-- Hook initialized here
 
-  // Catch-up: anything that settled while this person wasn't
-  // connected. Runs once per login (user id becoming available).
+  // Catch-up: anything that settled while this person wasn't connected.
   useEffect(() => {
     if (!user) return;
     const supabase = createClient();
@@ -78,11 +62,6 @@ export function WinPopup() {
   }, [user]);
 
   // Live: anything that settles while connected, shown immediately.
-  // Realtime's filter option only supports one column condition, so
-  // this subscribes on user_id and checks type === 'win' in the
-  // callback — other notification types landing here just get
-  // ignored by this listener, not dropped (a future notification
-  // center would subscribe the same way without the type check).
   useEffect(() => {
     if (!user) return;
     const supabase = createClient();
@@ -104,13 +83,7 @@ export function WinPopup() {
     };
   }, [user]);
 
-  // Advance the queue one at a time — settling several markets at
-  // once shouldn't stack multiple popups on top of each other. The
-  // next one only appears once the person dismisses the current one
-  // (no auto-timeout).
   // Advance the queue one at a time...
-  const { playWin } = useSound(); // <-- IMPORT useSound at the top of the file!
-
   useEffect(() => {
     if (!current && queue.length > 0) {
       const [next, ...rest] = queue;
@@ -121,6 +94,7 @@ export function WinPopup() {
         fireConfetti();
         playWin(); // <-- Play sound when confetti fires
       }
+      // Mark read the moment it's actually shown
       const supabase = createClient();
       supabase.from('notifications').update({ read_at: new Date().toISOString() }).eq('id', next.id).then();
     }
