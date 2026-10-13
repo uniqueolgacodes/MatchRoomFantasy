@@ -31,13 +31,16 @@ export default async function MatchPage({ params }: { params: { id: string } }) 
   } = await supabase.auth.getUser();
   if (!user) return null; // middleware already redirects; keeps TS happy below
 
-  const { data: match } = await supabase
+  const { data: rawMatch } = await supabase
     .from('matches')
     .select('id, home_team_id, away_team_id, kickoff, status, home_score, away_score, minute, is_virtual')
     .eq('id', params.id)
     .maybeSingle();
 
-  if (!match) notFound();
+  if (!rawMatch) notFound();
+
+  // Safely cast to 'any' to bypass strict Supabase 'never' inference on Netlify
+  const match = rawMatch as any;
 
   const [{ data: teams }, { data: predictionRows }, { data: linkedRooms }, balance] = await Promise.all([
     supabase.from('teams').select('id, name, short_name, crest_url').in('id', [match.home_team_id, match.away_team_id]),
