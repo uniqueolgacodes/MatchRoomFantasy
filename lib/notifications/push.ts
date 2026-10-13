@@ -21,7 +21,7 @@ async function getOneSignal(): Promise<OneSignalInstance> {
       await OneSignal.init({
         appId: appId,
         allowLocalhostAsSecureOrigin: true, // Required for local dev testing
-        notifyButton: { enable: false },
+        notifyButton: { enable: false } as any, // "as any" bypasses strict TypeScript typings that break builds
       });
       return OneSignal;
     })().catch((err) => {
