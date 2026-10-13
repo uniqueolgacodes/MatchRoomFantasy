@@ -108,6 +108,9 @@ export function WinPopup() {
   // once shouldn't stack multiple popups on top of each other. The
   // next one only appears once the person dismisses the current one
   // (no auto-timeout).
+  // Advance the queue one at a time...
+  const { playWin } = useSound(); // <-- IMPORT useSound at the top of the file!
+
   useEffect(() => {
     if (!current && queue.length > 0) {
       const [next, ...rest] = queue;
@@ -116,13 +119,12 @@ export function WinPopup() {
       if (hasFiredConfettiRef.current !== next.id) {
         hasFiredConfettiRef.current = next.id;
         fireConfetti();
+        playWin(); // <-- Play sound when confetti fires
       }
-      // Mark read the moment it's actually shown — fire-and-forget,
-      // doesn't block the UI either way.
       const supabase = createClient();
       supabase.from('notifications').update({ read_at: new Date().toISOString() }).eq('id', next.id).then();
     }
-  }, [current, queue]);
+  }, [current, queue, playWin]);
 
   function dismiss() {
     setCurrent(null);
