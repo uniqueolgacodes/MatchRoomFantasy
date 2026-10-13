@@ -1,22 +1,51 @@
-// Minimal service worker. This intentionally does NOT implement the
-// caching strategy from PRD §30.2 (app shell / data / images caches,
-// network-first vs cache-first per route) — that's separate, larger
-// scope. What's here exists for one narrow reason: most browsers
-// only fire `beforeinstallprompt` (the event InstallPromptBanner
-// listens for) once a page has a registered service worker with a
-// fetch handler — no caching behavior required, just presence. This
-// is that minimum, nothing more.
-self.addEventListener('install', () => {
+// public/sw.js
+const CACHE_NAME = 'matchroom-assets-v1';
+
+// Assets we want to cache immediately on install
+const PRECACHE_ASSETS = [
+  '/sounds/pop.mp3',
+  '/sounds/goal.mp3',
+  '/sounds/whistle.mp3',
+  '/sounds/win.mp3',
+  '/icons/192.png',
+  '/icons/512.png',
+];
+
+self.addEventListener('install', (event) => {
   self.skipWaiting();
+  event.waitUntil(
+    caches.open(CACHE_NAME).then((cache) => {
+      console.log('[Service Worker] Pre-caching offline assets');
+      return cache.addAll(PRECACHE_ASSETS.map(url => new Request(url, { cache: 'reload' })));
+    })
+  );
 });
 
 self.addEventListener('activate', (event) => {
   event.waitUntil(self.clients.claim());
 });
 
-self.addEventListener('fetch', () => {
-  // Deliberately a no-op — every request just falls through to the
-  // network exactly as if there were no service worker at all. Real
-  // caching strategy is future work, not a silent side effect of the
-  // PWA install prompt.
+self.addEventListener('fetch', (event) => {
+  const url = new URL(event.request.url);
+
+  // 1. Cache-First Strategy for Sounds and Icons
+  if (url.pathname.startsWith('/sounds/') || url.pathname.startsWith('/icons/')) {
+    event.respondWith(
+      caches.match(event.request).then((cachedResponse) => {
+        if (cachedResponse) return cachedResponse; // Instant load from disk
+
+        return fetch(event.request).then((response) => {
+          // Cache it for next time
+          if (response.ok) {
+            const clone = response.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
+          }
+          return response;
+        });
+      })
+    );
+    return;
+  }
+
+  // Next.js handles the rest of the routing/caching natively.
 });

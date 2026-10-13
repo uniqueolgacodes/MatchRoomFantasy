@@ -23,11 +23,12 @@ export function SoundProvider({ children }: { children: React.ReactNode }) {
     const win = useRef<Howl | null>(null);
 
     useEffect(() => {
-        // Howler automatically unlocks browser audio restrictions on the first user click
-        pop.current = new Howl({ src: ['/sounds/pop.mp3'], volume: 0.4 });
-        goal.current = new Howl({ src: ['/sounds/goal.mp3'], volume: 0.6 });
-        whistle.current = new Howl({ src: ['/sounds/whistle.mp3'], volume: 0.5 });
-        win.current = new Howl({ src: ['/sounds/win.mp3'], volume: 0.7 });
+        // preload: true forces it into memory. 
+        // html5: false forces low-latency Web Audio API (perfect for UI sounds).
+        pop.current = new Howl({ src: ['/sounds/pop.mp3'], volume: 0.4, preload: true, html5: false });
+        goal.current = new Howl({ src: ['/sounds/goal.mp3'], volume: 0.6, preload: true, html5: false });
+        whistle.current = new Howl({ src: ['/sounds/whistle.mp3'], volume: 0.5, preload: true, html5: false });
+        win.current = new Howl({ src: ['/sounds/win.mp3'], volume: 0.7, preload: true, html5: false });
     }, []);
 
     const playPop = () => pop.current?.play();
