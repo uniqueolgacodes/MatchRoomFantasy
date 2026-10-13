@@ -55,7 +55,7 @@ export default async function EditRoomPage({ params }: { params: { id: string } 
 
             <h1 className="mt-6 font-display text-2xl font-bold">Edit Matches</h1>
             <p className="mt-1 text-sm text-white/60">
-                Add upcoming matches, or remove ones that haven't kicked off yet. Matches that have already started are locked in.
+                Add upcoming matches, or remove ones that haven&apos;t kicked off yet. Matches that have already started are locked in.
             </p>
 
             <EditRoomForm roomId={room.id} matches={options} />
